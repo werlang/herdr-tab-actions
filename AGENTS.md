@@ -53,6 +53,21 @@ O layout aponta o bloco `tabs` para `tabs-ref` e o root `terminal_menu` para `re
 
 Os `tabs` e `menu` originais do Herdr continuam intocados. Se o layout for resetado, reponha `tabs-ref` e `ref-menu`.
 
+## Integrações opcionais
+
+O mod `tabs-ref` detecta em tempo de inicialização a presença de outros mods opcionais:
+
+- `new-menu-plus` (do repositório `herdr-space-actions`): quando instalado, o botão `+` abre o overlay de criação rápida de abas e o comando `tabs-ref.newMenu` é habilitado. Sem ele, o botão `+` executa diretamente a ação padrão `tab.new` no space ativo.
+- `agent-chat` (do repositório `herdr-agent-chat`): quando instalado, exibe o toggle Original / Chat na barra de abas para alternar ou criar o split de chat. Sem ele, a barra de alternância de chat não é renderizada.
+
+## Testes
+
+Para rodar os testes unitários de `ref.js` (sem necessidade de `npm test`):
+
+```sh
+node --test test/
+```
+
 ## Skill
 
 A skill `herdr-publish` está em `.agents/skills/herdr-publish/SKILL.md`. Ela cobre validação, sync, `RECIPE.md`/`preview.png` e publicação em `herdr.dev/mods` com o tópico `herdr-mod`.
