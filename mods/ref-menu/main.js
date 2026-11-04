@@ -216,9 +216,17 @@ export default class Menu extends View {
     else run(it[1], it[2]);
   }
 
+  /**
+   * Render the menu popup, clamping the highlighted index if the item list shrunk.
+   */
   render(cx) {
     const t = theme();
     const list = items(props(), this.git);
+    if (list.length > 0) {
+      this.at = Math.max(0, Math.min(this.at, list.length - 1));
+    } else {
+      this.at = 0;
+    }
     return v_flex()
       .id("menu")
       .track_focus(this.handle)

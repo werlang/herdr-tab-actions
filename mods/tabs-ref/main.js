@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand } from "herdr";
+import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -32,11 +32,47 @@ function menuHeight(tabId) {
   return 10 + (refs + actions) * 31 + 9 + (refs ? 9 : 0);
 }
 
+/**
+ * Safely parse the stored panel state from localStorage.
+ * Falls back to an empty object if missing, corrupt, or not a plain object.
+ * @returns {Record<string, unknown>}
+ */
+function loadPanels() {
+  try {
+    const raw = localStorage.getItem("panels");
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch {}
+  return {};
+}
+
 export default class Tabs extends View {
+  /**
+   * Initialize tab state, command listeners, optional mod probes, and periodic reordering.
+   */
   init(_props, cx) {
     this.pressed = null;
-    this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
-    this.pendingZoomChat = false;
+    this.pressedAt = 0;
+    this.panels = loadPanels();
+    this.pendingZoomChat = null;
+    this.hasNewMenu = false;
+    this.hasChat = false;
+
+    // Check optional mods asynchronously at startup.
+    cx.spawn(async (cx) => {
+      const home = appHome();
+      const [hasNewMenu, hasChat] = await Promise.all([
+        readTextFile(`${home}/mods/new-menu-plus/mod.json`).then((res) => typeof res === "string").catch(() => false),
+        readTextFile(`${home}/mods/agent-chat/mod.json`).then((res) => typeof res === "string").catch(() => false),
+      ]);
+      this.hasNewMenu = hasNewMenu;
+      this.hasChat = hasChat;
+      cx.notify();
+    });
+
     // cmd-w is bound to tabs-ref.closeTab: a pinned tab is not closed, the
     // closest other tab is shown instead. `reorder` comes from the tab menu
     // after it toggles shared("tabs.pinned").
@@ -46,13 +82,19 @@ export default class Tabs extends View {
         if (command === "closeTab") this.closeActive();
         else if (command === "pin") this.togglePin();
         else if (command === "reorder") this.reorder();
-        else if (command === "newMenu") this.toggleNewMenu();
+        else if (command === "newMenu") { if (this.hasNewMenu) this.toggleNewMenu(); }
         cx.notify();
       }
     });
     // Tabs are created, closed and dragged outside this mod's own clicks;
     // enforce "pinned first" cheaply (a no-op when the order is already right).
-    cx.timer.every(1000, () => { if (this.pressed === null) this.reorder(); });
+    // Treat pressed state as stale if a drag ended outside the window (> 5 s).
+    cx.timer.every(1000, () => {
+      if (this.pressed === null || Date.now() - this.pressedAt > 5000) {
+        this.pressed = null;
+        this.reorder();
+      }
+    });
     cx.timer.after(100, () => this.reorder());
   }
 
@@ -72,7 +114,11 @@ export default class Tabs extends View {
     return { x, y: 40 };
   }
 
+  /**
+   * Toggle the new tab menu overlay if the optional new-menu-plus mod is installed.
+   */
   toggleNewMenu() {
+    if (!this.hasNewMenu) return;
     const openOverlayId = shared("new-menu.open");
     if (openOverlayId) {
       closeOverlay(openOverlayId);
@@ -178,6 +224,9 @@ export default class Tabs extends View {
     localStorage.setItem("panels", JSON.stringify(this.panels));
   }
 
+  /**
+   * Render the tab bar, including tabs, optional + overlay / new tab, optional chat toggle, and panel shortcuts.
+   */
   render() {
     const t = theme();
     const space = spaces().find(p => p.active);
@@ -208,7 +257,12 @@ export default class Tabs extends View {
       return h_flex().id(`tab-${c.id}`).h(29).px(10).gap(7).rounded(7).items_center().flex_none().text_size(12.8)
         .border(1).border_color(c.active ? t.border : t.chrome).bg(c.active ? t.raised : t.chrome).text_color(c.active ? t.foreground : t.muted)
         .hover(s => s.bg(t.hover))
-        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+        .on_mouse_down("left", (e, cx) => {
+          cx.stop_propagation();
+          this.pressed = i;
+          this.pressedAt = Date.now();
+          if (e.click_count === 2) run("tab.rename", { id: c.id });
+        })
         .on_mouse_up("left", (_e, cx) => {
           const from = this.pressed; this.pressed = null;
           if (from !== null && from !== i) {
@@ -253,16 +307,24 @@ export default class Tabs extends View {
       const isChat = Boolean(chatPane && (chatPane.zoomed || !terminalPane));
 
       // Auto-zoom chatPane right after initial creation once Herdr registers it
-      if (this.pendingZoomChat && chatPane) {
-        this.pendingZoomChat = false;
-        if (!chatPane.zoomed) {
-          run("pane.zoom", { pane: chatPane.pane });
+      if (this.pendingZoomChat) {
+        if (this.pendingZoomChat.tab === activeTabId && Date.now() < this.pendingZoomChat.until) {
+          if (chatPane) {
+            this.pendingZoomChat = null;
+            if (!chatPane.zoomed) {
+              run("pane.zoom", { pane: chatPane.pane });
+            }
+          }
+        } else {
+          this.pendingZoomChat = null;
         }
       }
 
       const showChat = () => {
         if (!chatPane) {
-          this.pendingZoomChat = true;
+          if (activeTabId) {
+            this.pendingZoomChat = { tab: activeTabId, until: Date.now() + 3000 };
+          }
           const activeTerminal = terminalPane?.terminal || focused()?.terminal || null;
           run("pane.split", {
             direction: "right",
@@ -348,9 +410,11 @@ export default class Tabs extends View {
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().children(ordered.map(item)))
-      .child(button("tab-new", "+", () => this.toggleNewMenu())
-        .on_mouse_move(e => { if (e.position) this.plusPos = { x: Math.round(e.position.x - 13), y: 40 }; }))
-      .child(chatToggle())
+      .child(button("tab-new", "+", () => {
+        if (this.hasNewMenu) this.toggleNewMenu();
+        else run("tab.new", { space: space?.id });
+      }).on_mouse_move(e => { if (e.position) this.plusPos = { x: Math.round(e.position.x - 13), y: 40 }; }))
+      .when(this.hasChat, el => el.child(chatToggle()))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tabs-ref/win-min.svg").size(16) : "−", () => run("window.minimize")))
