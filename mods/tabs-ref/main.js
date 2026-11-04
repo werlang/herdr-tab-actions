@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, openOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand } from "herdr";
+import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -46,7 +46,7 @@ export default class Tabs extends View {
         if (command === "closeTab") this.closeActive();
         else if (command === "pin") this.togglePin();
         else if (command === "reorder") this.reorder();
-        else if (command === "newMenu") run("mod.open", { name: "new-menu-plus" });
+        else if (command === "newMenu") this.toggleNewMenu();
         cx.notify();
       }
     });
@@ -54,6 +54,34 @@ export default class Tabs extends View {
     // enforce "pinned first" cheaply (a no-op when the order is already right).
     cx.timer.every(1000, () => { if (this.pressed === null) this.reorder(); });
     cx.timer.after(100, () => this.reorder());
+  }
+
+  plusAt() {
+    if (this.plusPos) return this.plusPos;
+    const root = layout(), sidebar = find(root, "sidebar"), w = window();
+    const sidebarW = sidebar && !sidebar.hidden ? (sidebar.size?.px ?? 268) : 0;
+    const enabled = shared("workspace.panels") ?? ["files", "changes"];
+    const wWidth = this.tabsWidth ?? (1720 - sidebarW);
+    let rightOffset = 10;
+    if (w?.buttons) rightOffset += 87;
+    if (enabled.includes("changes")) rightOffset += 88;
+    if (enabled.includes("files")) rightOffset += 73;
+    rightOffset += 133;
+    rightOffset += 3;
+    const x = Math.max(sidebarW + 10, sidebarW + wWidth - rightOffset - 26);
+    return { x, y: 40 };
+  }
+
+  toggleNewMenu() {
+    const openOverlayId = shared("new-menu.open");
+    if (openOverlayId) {
+      closeOverlay(openOverlayId);
+      setShared("new-menu.open", null);
+      return;
+    }
+    const at = this.plusAt();
+    const id = openOverlay({ mod: "new-menu-plus", kind: "popup", width: 250, height: 512, at });
+    setShared("new-menu.open", id);
   }
 
   // Pinned tab ids as stored. A closed tab's id is kept: tab ids are unique and
@@ -316,10 +344,12 @@ export default class Tabs extends View {
     };
 
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(3).items_center().bg(t.chrome).border_b(1).border_color(t.border)
+      .on_size_change((size) => { this.tabsWidth = size.width; })
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().children(ordered.map(item)))
-      .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu-plus", kind: "popup", width: 250, height: 512 })))
+      .child(button("tab-new", "+", () => this.toggleNewMenu())
+        .on_mouse_move(e => { if (e.position) this.plusPos = { x: Math.round(e.position.x - 13), y: 40 }; }))
       .child(chatToggle())
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
