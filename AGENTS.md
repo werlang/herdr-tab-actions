@@ -2,7 +2,7 @@
 
 Fonte da verdade dos mods de **tabs** e **terminal references** do Herdr:
 
-- `mods/tabs-ref` — clone da barra de abas que abre o `ref-menu` no right-click, mostra o ícone de pin, mantém abas pinadas à frente do bloco regular de abas, esconde abas placeholder (`space-pin`) se houver abas normais e atende `tabs-ref.closeTab`.
+- `mods/tabs-ref` — clone da barra de abas que abre o `ref-menu` no right-click, mostra o ícone de pin, mantém abas pinadas à frente do bloco regular de abas, esconde a aba placeholder New tab (`space-pin`) se houver abas normais (a menos que esteja selecionada) e atende `tabs-ref.closeTab` e `tabs-ref.newTab`.
 - `mods/ref-menu` — clone do menu de contexto de pane e aba com **Pin tab / Unpin tab** e **Copy reference** (copia o endereço `hc` do terminal + contexto para a área de transferência via `ref.js`).
 
 ## Abas pinadas

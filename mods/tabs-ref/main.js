@@ -54,6 +54,7 @@ export default class Tabs extends View {
    * Initialize tab state, command listeners, optional mod probes, and periodic reordering.
    */
   init(_props, cx) {
+    this.cx = cx;
     this.pressed = null;
     this.pressedAt = 0;
     this.panels = loadPanels();
@@ -83,6 +84,7 @@ export default class Tabs extends View {
         else if (command === "pin") this.togglePin();
         else if (command === "reorder") this.reorder();
         else if (command === "newMenu") { if (this.hasNewMenu) this.toggleNewMenu(); }
+        else if (command === "newTab" || command === "newTerminal") this.openNewTab();
         cx.notify();
       }
     });
@@ -142,6 +144,34 @@ export default class Tabs extends View {
     return allPanes.some((p) => p.tab === tabId && p.mod === "space-pin");
   }
 
+  openNewTab() {
+    const space = spaces().find((s) => s.active);
+    if (!space) return;
+    const allPanes = panes();
+    const holder = (space.tabs ?? []).find((t) => this.isPlaceholder(t.id, allPanes));
+    if (holder) {
+      run("tab.select", { id: holder.id });
+      const pane = allPanes.find((p) => p.tab === holder.id);
+      if (pane) {
+        run("pane.focus", { pane: pane.pane });
+        this.cx?.timer?.after(20, () => run("pane.focus", { pane: pane.pane }));
+        this.cx?.timer?.after(80, () => run("pane.focus", { pane: pane.pane }));
+      }
+    } else {
+      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
+      run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
+      this.cx?.timer?.after(40, () => {
+        const ps = panes();
+        const sp = spaces().find((s) => s.active);
+        const h = (sp?.tabs ?? []).find((t) => ps.some((p) => p.tab === t.id && p.mod === "space-pin"));
+        if (h) {
+          const pane = ps.find((p) => p.tab === h.id);
+          if (pane) run("pane.focus", { pane: pane.pane });
+        }
+      });
+    }
+  }
+
   // Pinned regular tabs first, then unpinned regular tabs, then the pinned-
   // space placeholder (hidden whenever regular tabs exist). Only moved tabs
   // are touched, so dragging inside the pinned or unpinned block keeps order.
@@ -152,16 +182,14 @@ export default class Tabs extends View {
     const allPanes = panes(), pinned = this.pinnedSet();
     const isHolder = (t) => this.isPlaceholder(t.id, allPanes);
     const holders = tabs.filter(isHolder);
+    const regular = tabs.filter((t) => !isHolder(t));
     const isPinnedSpace = space && (shared("spaces.pinned") ?? []).includes(space.id);
-    if (isPinnedSpace && !holders.length && !this.pendingPin) {
+    if (isPinnedSpace && !regular.length && !holders.length && !this.pendingPin) {
       this.pendingPin = true;
       const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
-      run("tab.new", { space: space.id, mod: "space-pin", name: "Pinned space", props: { space: space.id, folder: loc } });
-      const activeTab = tabs.find((t) => t.active)?.id;
-      if (activeTab) run("tab.select", { id: activeTab });
+      run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
     }
     if (holders.length) this.pendingPin = false;
-    const regular = tabs.filter((t) => !isHolder(t));
     const desired = [
       ...regular.filter((t) => pinned.has(t.id)),
       ...regular.filter((t) => !pinned.has(t.id)),
@@ -190,12 +218,20 @@ export default class Tabs extends View {
    * the last regular tab in a pinned space, the placeholder tab is ensured first.
    */
   closeTab(tabId, space = spaces().find((s) => s.active), allPanes = panes()) {
-    if (this.isPlaceholder(tabId, allPanes)) return;
-    const isPinnedSpace = space && (shared("spaces.pinned") ?? []).includes(space.id);
-    const hasHolder = (space?.tabs ?? []).some((t) => this.isPlaceholder(t.id, allPanes));
-    if (isPinnedSpace && !hasHolder) {
-      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
-      run("tab.new", { space: space.id, mod: "space-pin", name: "Pinned space", props: { space: space.id, folder: loc } });
+    const tabs = space?.tabs ?? [];
+    const isHolder = this.isPlaceholder(tabId, allPanes);
+    const regular = tabs.filter((t) => !this.isPlaceholder(t.id, allPanes));
+
+    if (isHolder) {
+      if (regular.length) {
+        run("tab.close", { id: tabId });
+      }
+      return;
+    }
+
+    if (regular.length <= 1) {
+      const loc = (shared("spaces.pinned_locations") ?? {})[space?.id] || space?.folder;
+      run("tab.new", { space: space?.id, mod: "space-pin", name: "New tab", props: { space: space?.id, folder: loc } });
     }
     run("tab.close", { id: tabId });
   }
@@ -207,7 +243,7 @@ export default class Tabs extends View {
     const tab = (space?.tabs ?? []).find((t) => t.active);
     if (!tab) return;
     const allPanes = panes();
-    if (this.isPlaceholder(tab.id, allPanes)) return;
+    if (this.isPlaceholder(tab.id, allPanes)) { this.closeTab(tab.id, space, allPanes); return; }
     if (!this.pinnedSet().has(tab.id)) { this.closeTab(tab.id, space, allPanes); return; }
     const tabs = space.tabs ?? [];
     const index = tabs.findIndex((t) => t.id === tab.id);
@@ -258,11 +294,12 @@ export default class Tabs extends View {
     const tabs = space?.tabs ?? [];
     const allPanes = panes();
     const pinned = this.pinnedSet();
-    // A pinned space's placeholder tab exists only to keep the space alive.
-    // Hide it while the space has other tabs; show it only when it is the last one.
+    // A placeholder tab keeps a space alive or serves as the "New tab" screen.
+    // Hide it while the space has other tabs unless it is currently selected.
     const isHolder = (tab) => allPanes.some((pane) => pane.tab === tab.id && pane.mod === "space-pin");
     const shown = tabs.filter((tab) => {
       if (tabs.length <= 1) return true;
+      if (tab.active) return true;
       return !isHolder(tab);
     });
     // The model order is kept pinned-first by `reorder`; sorting here too means
@@ -276,7 +313,7 @@ export default class Tabs extends View {
       .on_mouse_down("left", stop).on_click(action).child(label);
     const item = (c, i) => {
       const program = allPanes.find(p => p.tab === c.id && p.program?.agent)?.program ?? allPanes.find(p => p.tab === c.id)?.program;
-      const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
+      const name = this.isPlaceholder(c.id, allPanes) ? "New tab" : (/^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name);
       const isChatZoomed = c.zoomed && allPanes.some(p => p.tab === c.id && p.mod === "agent-chat" && p.zoomed);
       const tabTitle = c.zoomed && !isChatZoomed ? `${name} Z` : name;
       return h_flex().id(`tab-${c.id}`).h(29).px(10).gap(7).rounded(7).items_center().flex_none().text_size(12.8)
@@ -295,7 +332,11 @@ export default class Tabs extends View {
             // Let the move land, then put pinned tabs back in front if the drop
             // crossed the block boundary.
             cx.timer.after(60, (cx) => { this.reorder(); cx.notify(); });
-          } else run("tab.select", { id: c.id });
+          } else {
+            run("tab.select", { id: c.id });
+            const pane = allPanes.find((p) => p.tab === c.id);
+            if (pane) run("pane.focus", { pane: pane.pane });
+          }
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "ref-menu", kind: "popup", width: 250, height: menuHeight(c.id), props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
@@ -303,7 +344,7 @@ export default class Tabs extends View {
         .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/ref-menu/pin.svg").size(11).flex_none().text_color(t.accent)))
         .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
         .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))
-        .when(c.active && !isHolder(c), el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id, space, allPanes); }).child(svg("mods/pane/close.svg").size(12))));
+        .when(c.active && (!isHolder(c) || tabs.some((t) => !isHolder(t))), el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id, space, allPanes); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.

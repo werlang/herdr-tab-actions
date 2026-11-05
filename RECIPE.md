@@ -25,7 +25,7 @@ Right-clicking a terminal pane opens the same menu rooted on that pane's termina
 - **Copy reference** writes the terminal's `hc` address and full tab/space/folder metadata to the system clipboard.
 - Supports macOS, Linux (`wl-copy`/`xclip`), and Windows.
 - On a TUI application that captures the mouse, **Shift+right-click** opens the pane menu.
-- While a space has other tabs, `tabs-ref` hides placeholder tabs (such as `space-pin`); it reveals them only when all other tabs close.
+- While a space has other tabs, `tabs-ref` hides placeholder tabs (such as `space-pin`); it reveals them when selected or when all other tabs close.
 
 ## Built from
 

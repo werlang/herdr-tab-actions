@@ -214,15 +214,21 @@ export default class Menu extends View {
     }
     if (it[1] === "tab.close" && it[2]?.id) {
       const id = it[2].id;
-      if (placeholder(id)) return;
       const spaceId = it[2]?.space || targetTab(props()?.target)?.space?.id;
       const space = spaces().find((s) => s.id === spaceId);
-      const isPinnedSpace = spaceId && (shared("spaces.pinned") ?? []).includes(spaceId);
-      const allPanes = panes();
-      const hasHolder = (space?.tabs ?? []).some((t) => placeholder(t.id, allPanes));
-      if (isPinnedSpace && !hasHolder) {
+      const tabs = space?.tabs ?? [];
+      const regular = tabs.filter((t) => !placeholder(t.id));
+
+      if (placeholder(id)) {
+        if (regular.length) {
+          run("tab.close", { id });
+        }
+        return;
+      }
+
+      if (regular.length <= 1) {
         const loc = (shared("spaces.pinned_locations") ?? {})[spaceId] || space?.folder;
-        run("tab.new", { space: spaceId, mod: "space-pin", name: "Pinned space", props: { space: spaceId, folder: loc } });
+        run("tab.new", { space: spaceId, mod: "space-pin", name: "New tab", props: { space: spaceId, folder: loc } });
       }
       run("tab.close", { id });
       return;
