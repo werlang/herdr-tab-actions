@@ -27,8 +27,8 @@ function refCount(tabId) {
 
 function menuHeight(tabId) {
   const refs = refCount(tabId);
-  // Rename, New tab, Close, plus Pin/Unpin for a regular tab.
-  const actions = panes().some((p) => p.tab === tabId && p.mod === "space-pin") ? 3 : 4;
+  // Rename, New tab, Close, plus Pin/Unpin for a regular tab. A placeholder tab only has New tab.
+  const actions = panes().some((p) => p.tab === tabId && p.mod === "space-pin") ? 1 : 4;
   return 10 + (refs + actions) * 31 + 9 + (refs ? 9 : 0);
 }
 
@@ -152,6 +152,15 @@ export default class Tabs extends View {
     const allPanes = panes(), pinned = this.pinnedSet();
     const isHolder = (t) => this.isPlaceholder(t.id, allPanes);
     const holders = tabs.filter(isHolder);
+    const isPinnedSpace = space && (shared("spaces.pinned") ?? []).includes(space.id);
+    if (isPinnedSpace && !holders.length && !this.pendingPin) {
+      this.pendingPin = true;
+      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
+      run("tab.new", { space: space.id, mod: "space-pin", name: "Pinned space", props: { space: space.id, folder: loc } });
+      const activeTab = tabs.find((t) => t.active)?.id;
+      if (activeTab) run("tab.select", { id: activeTab });
+    }
+    if (holders.length) this.pendingPin = false;
     const regular = tabs.filter((t) => !isHolder(t));
     const desired = [
       ...regular.filter((t) => pinned.has(t.id)),
@@ -176,16 +185,32 @@ export default class Tabs extends View {
     this.reorder();
   }
 
+  /**
+   * Close a tab safely: placeholder tabs are never closed, and if closing
+   * the last regular tab in a pinned space, the placeholder tab is ensured first.
+   */
+  closeTab(tabId, space = spaces().find((s) => s.active), allPanes = panes()) {
+    if (this.isPlaceholder(tabId, allPanes)) return;
+    const isPinnedSpace = space && (shared("spaces.pinned") ?? []).includes(space.id);
+    const hasHolder = (space?.tabs ?? []).some((t) => this.isPlaceholder(t.id, allPanes));
+    if (isPinnedSpace && !hasHolder) {
+      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
+      run("tab.new", { space: space.id, mod: "space-pin", name: "Pinned space", props: { space: space.id, folder: loc } });
+    }
+    run("tab.close", { id: tabId });
+  }
+
   // cmd-w on a pinned tab: show the closest other tab instead of closing it.
-  // The pinned-space placeholder is only a last resort.
+  // The pinned-space placeholder is never closed.
   closeActive() {
     const space = spaces().find((s) => s.active);
     const tab = (space?.tabs ?? []).find((t) => t.active);
     if (!tab) return;
-    if (!this.pinnedSet().has(tab.id)) { run("tab.close", { id: tab.id }); return; }
+    const allPanes = panes();
+    if (this.isPlaceholder(tab.id, allPanes)) return;
+    if (!this.pinnedSet().has(tab.id)) { this.closeTab(tab.id, space, allPanes); return; }
     const tabs = space.tabs ?? [];
     const index = tabs.findIndex((t) => t.id === tab.id);
-    const allPanes = panes();
     let others = tabs.filter((t) => t.id !== tab.id && !this.isPlaceholder(t.id, allPanes));
     if (!others.length) others = tabs.filter((t) => t.id !== tab.id);
     if (!others.length) return;
@@ -278,7 +303,7 @@ export default class Tabs extends View {
         .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/ref-menu/pin.svg").size(11).flex_none().text_color(t.accent)))
         .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
         .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))
-        .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
+        .when(c.active && !isHolder(c), el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id, space, allPanes); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.

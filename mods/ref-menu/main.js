@@ -123,14 +123,15 @@ function items(p, git) {
     }
     case "tab": {
       const { space, tab } = targetTab(tg);
+      const isHolder = placeholder(tg.id);
       const refs = terminalsOfTab(tg.id, terminals(), panes()).map((term) => copyItem(term, space, tab));
       const pinned = pinnedTabs().includes(tg.id);
       return [
         ...refs,
-        ...(placeholder(tg.id) ? [] : [[pinned ? "Unpin tab" : "Pin tab", pinned ? "tabs-ref.unpin" : "tabs-ref.pin", { id: tg.id }]]),
-        ["Rename", "tab.rename", { id: tg.id }],
+        ...(isHolder ? [] : [[pinned ? "Unpin tab" : "Pin tab", pinned ? "tabs-ref.unpin" : "tabs-ref.pin", { id: tg.id }]]),
+        ...(isHolder ? [] : [["Rename", "tab.rename", { id: tg.id }]]),
         ["New tab", "tab.new", { space: tg.space }],
-        ["Close", "tab.close", { id: tg.id }],
+        ...(isHolder ? [] : [["Close", "tab.close", { id: tg.id, space: tg.space }]]),
       ];
     }
     case "space":
@@ -209,6 +210,21 @@ export default class Menu extends View {
         // The tab bar owns the order: ask it to move pinned tabs to the front.
         run("tabs-ref.reorder");
       }
+      return;
+    }
+    if (it[1] === "tab.close" && it[2]?.id) {
+      const id = it[2].id;
+      if (placeholder(id)) return;
+      const spaceId = it[2]?.space || targetTab(props()?.target)?.space?.id;
+      const space = spaces().find((s) => s.id === spaceId);
+      const isPinnedSpace = spaceId && (shared("spaces.pinned") ?? []).includes(spaceId);
+      const allPanes = panes();
+      const hasHolder = (space?.tabs ?? []).some((t) => placeholder(t.id, allPanes));
+      if (isPinnedSpace && !hasHolder) {
+        const loc = (shared("spaces.pinned_locations") ?? {})[spaceId] || space?.folder;
+        run("tab.new", { space: spaceId, mod: "space-pin", name: "Pinned space", props: { space: spaceId, folder: loc } });
+      }
+      run("tab.close", { id });
       return;
     }
     if (it[1].startsWith("ref.")) return;
