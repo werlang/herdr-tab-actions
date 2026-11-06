@@ -15,7 +15,10 @@ Right-click a tab to pin it:
 - Pinned tabs show a pin icon and always sit before regular unpinned tabs.
 - Pin state lives in `shared("tabs.pinned")` and persists across closing and reopening Herdr. Closed tab ids remain harmless because Herdr never reuses tab ids.
 - The tab bar reorders the model using `tab.move`, so keyboard navigation (`cmd+1..9`, `tab.next`, `tab.prev`) stays consistent.
+- **`cmd+1..9` follows the tab bar:** bind `cmd-1`..`cmd-9` to `tabs-ref.select1`..`tabs-ref.select9`. Only visible tabs count, the hidden New tab placeholder is never selected, and a number past the last tab is ignored without an error (built-in `tab.select:N` errors there and counts hidden tabs).
 - **`cmd+w` never closes a pinned tab:** bind `cmd-w` to `tabs-ref.closeTab`. On a pinned tab, it selects the closest available tab instead of closing. Unpinned tabs close normally. Explicit **Close** in the right-click menu or clicking the close button still closes a pinned tab.
+- **New tab placeholder:** the hidden placeholder is `space-pin` from [`herdr-space-actions`](https://github.com/werlang/herdr-space-actions). It is optional; without it, the tab bar still works but has no placeholder to hide or restore. The icon used for it is bundled here. Bind `cmd-t` to `tabs-ref.newTab` to open or select it; without `tabs-ref`, use `spaces-plus.newTerminal` or `tab.new`.
+- **New tab button at the end of the strip:** the `+` sits after the last visible tab and scrolls with the tabs. It opens `new-menu-plus` in one click when that mod is installed; otherwise it opens a terminal tab directly.
 
 ## Copy reference
 

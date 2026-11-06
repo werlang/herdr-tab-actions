@@ -21,11 +21,14 @@ Right-clicking a terminal pane opens the same menu rooted on that pane's termina
 
 - **Pin tab** stores the tab id in `shared("tabs.pinned")` and moves the tab to the front of regular tabs.
 - `tabs-ref` reorders the model using `tab.move`, so pinned tabs stay first after dragging, opening new tabs, or restarting.
+- `cmd-1`..`cmd-9` bound to `tabs-ref.select1`..`select9`: selects the Nth tab the bar shows; the hidden placeholder is skipped and out-of-range numbers do nothing (no error).
+- `cmd-t` bound to `tabs-ref.newTab`: opens or selects the **New tab** (`space-pin`) placeholder instead of starting a terminal directly.
 - `cmd+w` bound to `tabs-ref.closeTab`: on a pinned tab it does not close; it selects the closest available tab (ties break to the right). On unpinned tabs it calls `tab.close`.
 - **Copy reference** writes the terminal's `hc` address and full tab/space/folder metadata to the system clipboard.
 - Supports macOS, Linux (`wl-copy`/`xclip`), and Windows.
 - On a TUI application that captures the mouse, **Shift+right-click** opens the pane menu.
 - While a space has other tabs, `tabs-ref` hides placeholder tabs (such as `space-pin`); it reveals them when selected or when all other tabs close.
+- The `+` sits after the last visible tab and opens `new-menu-plus` in one click; without that mod it opens a terminal tab directly.
 
 ## Built from
 
@@ -37,6 +40,7 @@ Right-clicking a terminal pane opens the same menu rooted on that pane's termina
 ## Watch out
 
 - **Both mods are required:** `tabs-ref` depends on `ref-menu`; installing only one loses either the tab menu or the pane menu.
+- `space-pin` (from `herdr-space-actions`) is optional: it provides the hidden New tab placeholder that `tabs-ref` hides and restores. Without it, the tab bar still works. The placeholder icon is bundled in `mods/tabs-ref/new-tab.svg`.
 - `cmd+w` must point at `tabs-ref.closeTab` (not `tab.close`) for pinned tabs to protect themselves.
 - Linux **Copy reference** needs `wl-copy` or `xclip`.
 - Do not rename `tabs-ref` or `ref-menu`: asset paths and `openOverlay` calls use those folder names.
