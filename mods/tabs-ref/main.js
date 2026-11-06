@@ -54,7 +54,6 @@ export default class Tabs extends View {
    * Initialize tab state, command listeners, optional mod probes, and periodic reordering.
    */
   init(_props, cx) {
-    this.cx = cx;
     this.pressed = null;
     this.pressedAt = 0;
     this.panels = loadPanels();
@@ -135,6 +134,15 @@ export default class Tabs extends View {
     return allPanes.some((p) => p.tab === tabId && p.mod === "space-pin");
   }
 
+  /**
+   * cmd+t: select (or create) the space's New tab placeholder.
+   *
+   * The keyboard itself is taken by `space-pin`, which owns the focus handle:
+   * it retries for a short window after it comes on screen, and again when the
+   * `shared("space-pin.focus")` stamp changes (bumped here, so cmd+t on an
+   * already selected placeholder that lost the keyboard gets it back). Nothing
+   * here re-focuses on a loop, so modal inputs keep their focus.
+   */
   openNewTab() {
     const space = spaces().find((s) => s.active);
     if (!space) return;
@@ -143,24 +151,12 @@ export default class Tabs extends View {
     if (holder) {
       run("tab.select", { id: holder.id });
       const pane = allPanes.find((p) => p.tab === holder.id);
-      if (pane) {
-        run("pane.focus", { pane: pane.pane });
-        this.cx?.timer?.after(20, () => run("pane.focus", { pane: pane.pane }));
-        this.cx?.timer?.after(80, () => run("pane.focus", { pane: pane.pane }));
-      }
+      if (pane) run("pane.focus", { pane: pane.pane });
     } else {
       const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
       run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
-      this.cx?.timer?.after(40, () => {
-        const ps = panes();
-        const sp = spaces().find((s) => s.active);
-        const h = (sp?.tabs ?? []).find((t) => ps.some((p) => p.tab === t.id && p.mod === "space-pin"));
-        if (h) {
-          const pane = ps.find((p) => p.tab === h.id);
-          if (pane) run("pane.focus", { pane: pane.pane });
-        }
-      });
     }
+    setShared("space-pin.focus", Date.now());
   }
 
   /**
