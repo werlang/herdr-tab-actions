@@ -83,8 +83,8 @@ export default class Tabs extends View {
         if (command === "closeTab") this.closeActive();
         else if (command === "pin") this.togglePin();
         else if (command === "reorder") this.reorder();
-        else if (command === "newMenu") { if (this.hasNewMenu) this.toggleNewMenu(); }
         else if (command === "newTab" || command === "newTerminal") this.openNewTab();
+        else if (/^select[1-9]$/.test(command)) this.selectNth(Number(command.slice(6)));
         cx.notify();
       }
     });
@@ -100,35 +100,26 @@ export default class Tabs extends View {
     cx.timer.after(100, () => this.reorder());
   }
 
-  plusAt() {
-    if (this.plusPos) return this.plusPos;
-    const root = layout(), sidebar = find(root, "sidebar"), w = window();
-    const sidebarW = sidebar && !sidebar.hidden ? (sidebar.size?.px ?? 268) : 0;
-    const enabled = shared("workspace.panels") ?? ["files", "changes"];
-    const wWidth = this.tabsWidth ?? (1720 - sidebarW);
-    let rightOffset = 10;
-    if (w?.buttons) rightOffset += 87;
-    if (enabled.includes("changes")) rightOffset += 88;
-    if (enabled.includes("files")) rightOffset += 73;
-    rightOffset += 133;
-    rightOffset += 3;
-    const x = Math.max(sidebarW + 10, sidebarW + wWidth - rightOffset - 26);
-    return { x, y: 40 };
-  }
-
   /**
-   * Toggle the new tab menu overlay if the optional new-menu-plus mod is installed.
+   * Open the new tab menu overlay if the optional new-menu-plus mod is installed.
+   *
+   * A popup closes itself on Esc or a click beside it, and this mod never hears
+   * about that, so `shared("new-menu.open")` outlives the menu. Toggling on it
+   * made the next click only clear the stale id, which is why opening the menu
+   * took two clicks. Close the remembered overlay (a no-op when it is already
+   * gone) and always open a fresh one, so one click is always enough.
    */
-  toggleNewMenu() {
+  openNewMenu() {
     if (!this.hasNewMenu) return;
     const openOverlayId = shared("new-menu.open");
-    if (openOverlayId) {
-      closeOverlay(openOverlayId);
-      setShared("new-menu.open", null);
-      return;
-    }
-    const at = this.plusAt();
-    const id = openOverlay({ mod: "new-menu-plus", kind: "popup", width: 250, height: 512, at });
+    if (openOverlayId) closeOverlay(openOverlayId);
+    const id = openOverlay({
+      mod: "new-menu-plus",
+      kind: "popup",
+      width: 250,
+      height: 512,
+      at: this.plusPos ?? "pointer",
+    });
     setShared("new-menu.open", id);
   }
 
@@ -170,6 +161,42 @@ export default class Tabs extends View {
         }
       });
     }
+  }
+
+  /**
+   * The tabs the tab bar actually shows, left to right.
+   * A placeholder tab (`space-pin`) keeps a space alive or serves as the New tab
+   * screen, so it is hidden while the space has other tabs, unless it is the
+   * active one. Pinned regular tabs come first, matching `reorder`.
+   * @param {{tabs?: Array<{id: string, active?: boolean}>}} space
+   * @param {Array} allPanes panes() snapshot
+   * @returns {Array} visible tabs, in display order
+   */
+  visibleTabs(space, allPanes = panes()) {
+    const tabs = space?.tabs ?? [];
+    const pinned = this.pinnedSet();
+    const isHolder = (tab) => this.isPlaceholder(tab.id, allPanes);
+    const shown = tabs.filter((tab) => tabs.length <= 1 || tab.active || !isHolder(tab));
+    return [
+      ...shown.filter((tab) => pinned.has(tab.id) && !isHolder(tab)),
+      ...shown.filter((tab) => !pinned.has(tab.id) || isHolder(tab)),
+    ];
+  }
+
+  /**
+   * cmd+1..9 (bound to `tabs-ref.select1`..`select9`): select the Nth tab of
+   * the tab bar. A number past the last visible tab is ignored (the built-in
+   * `tab.select` errors there), and the hidden placeholder never counts.
+   * @param {number} n 1-based position in the tab bar
+   */
+  selectNth(n) {
+    const space = spaces().find((s) => s.active);
+    const allPanes = panes();
+    const tab = this.visibleTabs(space, allPanes)[n - 1];
+    if (!tab || tab.active) return;
+    run("tab.select", { id: tab.id });
+    const pane = allPanes.find((p) => p.tab === tab.id);
+    if (pane) run("pane.focus", { pane: pane.pane });
   }
 
   // Pinned regular tabs first, then unpinned regular tabs, then the pinned-
@@ -294,20 +321,11 @@ export default class Tabs extends View {
     const tabs = space?.tabs ?? [];
     const allPanes = panes();
     const pinned = this.pinnedSet();
-    // A placeholder tab keeps a space alive or serves as the "New tab" screen.
-    // Hide it while the space has other tabs unless it is currently selected.
+    // The placeholder tab is hidden while the space has other tabs (see visibleTabs).
     const isHolder = (tab) => allPanes.some((pane) => pane.tab === tab.id && pane.mod === "space-pin");
-    const shown = tabs.filter((tab) => {
-      if (tabs.length <= 1) return true;
-      if (tab.active) return true;
-      return !isHolder(tab);
-    });
     // The model order is kept pinned-first by `reorder`; sorting here too means
     // the very first frame after a switch already reads correctly.
-    const ordered = [
-      ...shown.filter((tab) => pinned.has(tab.id) && !isHolder(tab)),
-      ...shown.filter((tab) => !pinned.has(tab.id) || isHolder(tab)),
-    ];
+    const ordered = this.visibleTabs(space, allPanes);
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, label, action) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
       .on_mouse_down("left", stop).on_click(action).child(label);
@@ -340,6 +358,7 @@ export default class Tabs extends View {
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "ref-menu", kind: "popup", width: 250, height: menuHeight(c.id), props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
+        .when(!program?.icon && this.isPlaceholder(c.id, allPanes), el => el.child(svg("mods/tabs-ref/new-tab.svg").size(13).text_color(t.muted)))
         .child(div().max_w(170).truncate().child(tabTitle))
         .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/ref-menu/pin.svg").size(11).flex_none().text_color(t.accent)))
         .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
@@ -472,14 +491,16 @@ export default class Tabs extends View {
     };
 
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(3).items_center().bg(t.chrome).border_b(1).border_color(t.border)
-      .on_size_change((size) => { this.tabsWidth = size.width; })
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().children(ordered.map(item)))
-      .child(button("tab-new", "+", () => {
-        if (this.hasNewMenu) this.toggleNewMenu();
-        else run("tab.new", { space: space?.id });
-      }).on_mouse_move(e => { if (e.position) this.plusPos = { x: Math.round(e.position.x - 13), y: 40 }; }))
+      // The + rides at the end of the tab strip, next to the last tab. It
+      // scrolls with the tabs instead of sitting by the panel buttons.
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar()
+        .children(ordered.map(item))
+        .child(button("tab-new", "+", () => {
+          if (this.hasNewMenu) this.openNewMenu();
+          else run("tab.new", { space: space?.id });
+        }).on_mouse_move(e => { if (e.position) this.plusPos = { x: Math.round(e.position.x - 13), y: 40 }; })))
       .when(this.hasChat, el => el.child(chatToggle()))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
