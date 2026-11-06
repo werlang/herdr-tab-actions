@@ -1,4 +1,7 @@
 {
+  "name": "ref-menu",
+  "version": "0.1.0",
+  "description": "Tab and terminal-pane context menu with Copy reference and Pin tab",
   "place": "none",
   "overlay": {
     "width": 260,
