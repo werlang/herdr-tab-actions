@@ -1,7 +1,7 @@
 {
   "name": "tabs-ref",
-  "version": "0.1.0",
-  "title": "Tabs",
+  "version": "0.1.1",
+  "title": "Tabs Ref",
   "description": "Tab bar with pinned tabs, close protection, and the New tab placeholder",
   "place": "none",
   "cloned_from": {
