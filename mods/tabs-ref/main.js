@@ -25,6 +25,29 @@ function refCount(tabId) {
   return seen.size;
 }
 
+/**
+ * Optional mods this tab bar works with. None is required: each one only adds
+ * to the tab bar, and without it the bar falls back to Herdr's own pieces.
+ * - space-pin: the New tab placeholder that keeps a pinned space alive.
+ * - ref-menu: the tab right-click menu with Copy reference and Pin tab
+ *   (otherwise Herdr's `menu`, without pinning).
+ * - new-menu-plus: the + menu (otherwise a plain new terminal tab).
+ * - agent-chat: the Original / Chat toggle.
+ */
+const OPTIONAL_MODS = ["space-pin", "ref-menu", "new-menu-plus", "agent-chat"];
+/** How often optional mods are looked for again, so installing or turning one off applies live. */
+const PROBE_MS = 5000;
+
+/**
+ * Whether a mod is installed in the live mods folder. Herdr has no API for
+ * that, so this reads the mod's manifest; a missing file resolves to false.
+ * @param {string} name mod folder name
+ * @returns {Promise<boolean>}
+ */
+function installed(name) {
+  return readTextFile(`${appHome()}/mods/${name}/mod.json`).then((text) => typeof text === "string").catch(() => false);
+}
+
 function menuHeight(tabId) {
   const refs = refCount(tabId);
   // Rename, New tab, Close, plus Pin/Unpin for a regular tab. A placeholder tab only has New tab.
@@ -58,20 +81,12 @@ export default class Tabs extends View {
     this.pressedAt = 0;
     this.panels = loadPanels();
     this.pendingZoomChat = null;
-    this.hasNewMenu = false;
-    this.hasChat = false;
+    /** @type {Record<string, boolean>} which OPTIONAL_MODS are installed */
+    this.mods = {};
 
-    // Check optional mods asynchronously at startup.
-    cx.spawn(async (cx) => {
-      const home = appHome();
-      const [hasNewMenu, hasChat] = await Promise.all([
-        readTextFile(`${home}/mods/new-menu-plus/mod.json`).then((res) => typeof res === "string").catch(() => false),
-        readTextFile(`${home}/mods/agent-chat/mod.json`).then((res) => typeof res === "string").catch(() => false),
-      ]);
-      this.hasNewMenu = hasNewMenu;
-      this.hasChat = hasChat;
-      cx.notify();
-    });
+    // Look for the optional mods now and again later (see OPTIONAL_MODS).
+    this.probeMods(cx);
+    cx.timer.every(PROBE_MS, (cx) => this.probeMods(cx));
 
     // cmd-w is bound to tabs-ref.closeTab: a pinned tab is not closed, the
     // closest other tab is shown instead. `reorder` comes from the tab menu
@@ -97,6 +112,51 @@ export default class Tabs extends View {
       }
     });
     cx.timer.after(100, () => this.reorder());
+  }
+
+  /**
+   * Reads which OPTIONAL_MODS are installed and redraws when that changed.
+   * @param {object} cx
+   */
+  probeMods(cx) {
+    cx.spawn(async (cx) => {
+      const found = await Promise.all(OPTIONAL_MODS.map(installed));
+      const next = Object.fromEntries(OPTIONAL_MODS.map((name, i) => [name, found[i]]));
+      if (OPTIONAL_MODS.some((name) => next[name] !== this.mods[name])) {
+        this.mods = next;
+        cx.notify();
+      }
+    });
+  }
+
+  /** True while the space-pin placeholder mod is installed. */
+  get hasPlaceholder() { return Boolean(this.mods["space-pin"]); }
+  get hasNewMenu() { return Boolean(this.mods["new-menu-plus"]); }
+  get hasChat() { return Boolean(this.mods["agent-chat"]); }
+
+  /**
+   * Opens the right-click menu for one tab: ref-menu when installed, else
+   * Herdr's own `menu` (same props, without Copy reference or Pin tab).
+   * @param {{id: string}} tab
+   * @param {{id: string}} space
+   */
+  openTabMenu(tab, space) {
+    const props = { tab: "tab", target: { id: tab.id, space: space.id } };
+    if (this.mods["ref-menu"]) openOverlay({ mod: "ref-menu", kind: "popup", width: 250, height: menuHeight(tab.id), props });
+    else openOverlay({ mod: "menu", kind: "popup", width: 200, props });
+  }
+
+  /**
+   * Creates the space-pin placeholder tab in a space. A no-op returning false
+   * when space-pin is not installed: Herdr would open a tab that cannot render.
+   * @param {{id?: string, folder?: string} | undefined} space
+   * @returns {boolean} whether a placeholder was requested
+   */
+  newPlaceholder(space) {
+    if (!this.hasPlaceholder || !space) return false;
+    const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
+    run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
+    return true;
   }
 
   /**
@@ -152,9 +212,10 @@ export default class Tabs extends View {
       run("tab.select", { id: holder.id });
       const pane = allPanes.find((p) => p.tab === holder.id);
       if (pane) run("pane.focus", { pane: pane.pane });
-    } else {
-      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
-      run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
+    } else if (!this.newPlaceholder(space)) {
+      // Without space-pin there is no New tab screen: open a terminal tab, like Herdr's cmd+t.
+      run("tab.new", { space: space.id });
+      return;
     }
     setShared("space-pin.focus", Date.now());
   }
@@ -208,9 +269,7 @@ export default class Tabs extends View {
     const regular = tabs.filter((t) => !isHolder(t));
     const isPinnedSpace = space && (shared("spaces.pinned") ?? []).includes(space.id);
     if (isPinnedSpace && !regular.length && !holders.length && !this.pendingPin) {
-      this.pendingPin = true;
-      const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
-      run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
+      this.pendingPin = this.newPlaceholder(space);
     }
     if (holders.length) this.pendingPin = false;
     const desired = [
@@ -252,10 +311,9 @@ export default class Tabs extends View {
       return;
     }
 
-    if (regular.length <= 1) {
-      const loc = (shared("spaces.pinned_locations") ?? {})[space?.id] || space?.folder;
-      run("tab.new", { space: space?.id, mod: "space-pin", name: "New tab", props: { space: space?.id, folder: loc } });
-    }
+    // Closing the last regular tab leaves the placeholder behind (when space-pin
+    // is installed); without it the space closes with its last tab, as in Herdr.
+    if (regular.length <= 1) this.newPlaceholder(space);
     run("tab.close", { id: tabId });
   }
 
@@ -352,11 +410,11 @@ export default class Tabs extends View {
             if (pane) run("pane.focus", { pane: pane.pane });
           }
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "ref-menu", kind: "popup", width: 250, height: menuHeight(c.id), props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.openTabMenu(c, space); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
         .when(!program?.icon && this.isPlaceholder(c.id, allPanes), el => el.child(svg("mods/tabs-ref/new-tab.svg").size(13).text_color(t.muted)))
         .child(div().max_w(170).truncate().child(tabTitle))
-        .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/ref-menu/pin.svg").size(11).flex_none().text_color(t.accent)))
+        .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/tabs-ref/pin.svg").size(11).flex_none().text_color(t.accent)))
         .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
         .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))
         .when(c.active && (!isHolder(c) || tabs.some((t) => !isHolder(t))), el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id, space, allPanes); }).child(svg("mods/pane/close.svg").size(12))));
@@ -451,7 +509,7 @@ export default class Tabs extends View {
             .cursor_pointer()
             .hover((s) => (!isChat ? s : s.bg(t.hover)))
             .on_click(showOriginal)
-            .child(svg("mods/agent-chat/icons/terminal.svg").size(12).text_color(!isChat ? t.accent : t.muted))
+            .child(svg("mods/tabs-ref/terminal.svg").size(12).text_color(!isChat ? t.accent : t.muted))
             .child(
               div()
                 .text_size(11)
@@ -475,7 +533,7 @@ export default class Tabs extends View {
               if (isChat) showOriginal();
               else showChat();
             })
-            .child(svg("mods/agent-chat/icons/chat.svg").size(12).text_color(isChat ? t.accent : t.muted))
+            .child(svg("mods/tabs-ref/chat.svg").size(12).text_color(isChat ? t.accent : t.muted))
             .child(
               div()
                 .text_size(11)
