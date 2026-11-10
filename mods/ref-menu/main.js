@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, notify, window, shared, setShared } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, notify, window, shared, setShared, layout, appHome, readTextFile } from "herdr";
 import { addressOf, appOf, locateTab, terminalsOfTab, reference } from "./ref.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
@@ -72,6 +72,32 @@ function pinnedTabs() {
   return shared("tabs.pinned") ?? [];
 }
 
+// Whether a mod is mounted in the current layout, not merely installed on disk.
+function mounted(node, mod) {
+  if (!node || typeof node !== "object") return false;
+  if (node.content === mod || node.mod === mod) return true;
+  if (node.content && typeof node.content === "object" && node.content.mod === mod) return true;
+  return (node.children ?? []).some((child) => mounted(child, mod));
+}
+
+/**
+ * Pinned tabs are kept in front, and spared by cmd+w, by the `tabs-ref` tab
+ * bar. Without it in the layout a pin would do nothing, so Pin tab is hidden.
+ * @returns {boolean}
+ */
+function canPinTabs() {
+  return mounted(layout(), "tabs-ref");
+}
+
+/**
+ * Whether a mod is installed in the live mods folder (its manifest exists).
+ * @param {string} name mod folder name
+ * @returns {Promise<boolean>}
+ */
+function installed(name) {
+  return readTextFile(`${appHome()}/mods/${name}/mod.json`).then((text) => typeof text === "string").catch(() => false);
+}
+
 // The space/tab a clicked pane belongs to.
 function targetPane(target) {
   const pane = panes().find((p) => p.pane === target?.pane);
@@ -128,7 +154,7 @@ function items(p, git) {
       const pinned = pinnedTabs().includes(tg.id);
       return [
         ...refs,
-        ...(isHolder ? [] : [[pinned ? "Unpin tab" : "Pin tab", pinned ? "tabs-ref.unpin" : "tabs-ref.pin", { id: tg.id }]]),
+        ...(isHolder || !canPinTabs() ? [] : [[pinned ? "Unpin tab" : "Pin tab", pinned ? "tabs-ref.unpin" : "tabs-ref.pin", { id: tg.id }]]),
         ...(isHolder ? [] : [["Rename", "tab.rename", { id: tg.id }]]),
         ["New tab", "tab.new", { space: tg.space }],
         ...(isHolder ? [] : [["Close", "tab.close", { id: tg.id, space: tg.space }]]),
@@ -174,6 +200,10 @@ export default class Menu extends View {
   init(_props, cx) {
     this.at = 0;
     this.git = null;
+    // The space-pin placeholder is optional: closing the last tab only leaves
+    // one behind while that mod is installed (checked before any click lands).
+    this.hasPlaceholder = false;
+    cx.spawn(async () => { this.hasPlaceholder = await installed("space-pin"); });
     this.handle = cx.focus_handle();
     this.handle.focus();
     const p = props();
@@ -226,7 +256,7 @@ export default class Menu extends View {
         return;
       }
 
-      if (regular.length <= 1) {
+      if (regular.length <= 1 && this.hasPlaceholder) {
         const loc = (shared("spaces.pinned_locations") ?? {})[spaceId] || space?.folder;
         run("tab.new", { space: spaceId, mod: "space-pin", name: "New tab", props: { space: spaceId, folder: loc } });
       }
