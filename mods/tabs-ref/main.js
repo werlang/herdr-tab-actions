@@ -1,6 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile } from "herdr";
+import { findPreviewEntry, promoteOpenTab } from "./preview.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -87,19 +88,6 @@ export default class Tabs extends View {
     // Look for the optional mods now and again later (see OPTIONAL_MODS).
     this.probeMods(cx);
     cx.timer.every(PROBE_MS, (cx) => this.probeMods(cx));
-
-    // file-editor publishes its preview tabs in shared state; shared() is not
-    // reactive, so poll the small signature to redraw italic labels when a tab
-    // is promoted from the editor side or by typing in it.
-    this.previewSig = this.previewSignature();
-    cx.timer.every(400, (cx) => {
-      const promoted = this.promotePinnedPreviews();
-      const signature = this.previewSignature();
-      if (promoted || signature !== this.previewSig) {
-        this.previewSig = signature;
-        cx.notify();
-      }
-    });
 
     // cmd-w is bound to tabs-ref.closeTab: a pinned tab is not closed, the
     // closest other tab is shown instead. `reorder` comes from the tab menu
@@ -209,27 +197,17 @@ export default class Tabs extends View {
 
   /**
    * The file-editor openTabs entry for a tab when it is a preview (temporary)
-   * tab. File-editor publishes `preview: true` in `shared("file-editor.openTabs")`;
-   * matching by tab id first and by the exact tab name while the freshly
-   * created tab has not recorded its id yet.
+   * tab. The pure matching rules live in preview.js so the cross-mod contract
+   * stays testable; this wrapper supplies the live pane list.
    *
    * @param {{ id: string, name: string }} tab
    * @returns {{ key: string, entry: Record<string, any> } | null}
    */
   previewEntry(tab) {
-    const map = shared("file-editor.openTabs");
-    if (!map || typeof map !== "object") return null;
-    for (const [key, entry] of Object.entries(map)) {
-      if (!entry || typeof entry !== "object" || entry.preview !== true) continue;
-      if (typeof entry.tabId === "string" && entry.tabId.length > 0) {
-        if (entry.tabId === tab.id) return { key, entry };
-        continue;
-      }
-      if (typeof entry.tabName === "string" && entry.tabName && entry.tabName === tab.name) {
-        return { key, entry };
-      }
-    }
-    return null;
+    const editorTabs = new Set(
+      panes().filter((pane) => pane.mod === "file-editor").map((pane) => pane.tab)
+    );
+    return findPreviewEntry(shared("file-editor.openTabs"), tab, editorTabs);
   }
 
   /**
@@ -242,28 +220,10 @@ export default class Tabs extends View {
   promotePreview(tab) {
     const found = this.previewEntry(tab);
     if (!found) return false;
-    const { preview: _preview, ...entry } = found.entry;
-    setShared("file-editor.openTabs", {
-      ...shared("file-editor.openTabs"),
-      [found.key]: { ...entry, tabId: found.entry.tabId || tab.id },
-    });
+    const { next, promoted } = promoteOpenTab(shared("file-editor.openTabs"), found.key, tab.id);
+    if (!promoted) return false;
+    setShared("file-editor.openTabs", next);
     return true;
-  }
-
-  /**
-   * Stable signature of the preview tabs currently recorded by file-editor.
-   * Used to redraw when that mod promotes a tab (shared state is not reactive).
-   *
-   * @returns {string}
-   */
-  previewSignature() {
-    const map = shared("file-editor.openTabs");
-    if (!map || typeof map !== "object") return "";
-    return Object.entries(map)
-      .filter(([, entry]) => entry && entry.preview === true)
-      .map(([key, entry]) => `${key}:${entry.tabId || entry.tabName || ""}`)
-      .sort()
-      .join("|");
   }
 
   /**
@@ -351,6 +311,9 @@ export default class Tabs extends View {
   // space placeholder (hidden whenever regular tabs exist). Only moved tabs
   // are touched, so dragging inside the pinned or unpinned block keeps order.
   reorder() {
+    // Pin is a "keep" action: promote a preview pinned from ref-menu before
+    // sorting, so the next preview open cannot replace it.
+    this.promotePinnedPreviews();
     const space = spaces().find((s) => s.active);
     const tabs = space?.tabs ?? [];
     if (!tabs.length) return;
