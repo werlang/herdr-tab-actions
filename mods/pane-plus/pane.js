@@ -67,3 +67,26 @@ export function menuRows() {
 export function actions(rows = menuRows()) {
   return rows.filter((row) => !row.sep);
 }
+
+/**
+ * Whether a pane hosts a full mod (like git-graph or file-editor) rather than
+ * a terminal or the new-pane chooser.
+ *
+ * Full mod panes render their own headers and toolbars, so pane-plus renders
+ * as a compact floating action pill instead of an occluding full-width bar.
+ *
+ * @param {{ mod?: string } | null | undefined} pane
+ * @returns {boolean}
+ */
+export function isModPane(pane) {
+  return Boolean(pane?.mod && pane.mod !== "new-pane");
+}
+
+/**
+ * Delay in milliseconds before revealing the action pill on a mod pane.
+ *
+ * A deliberate dwell delay gives quick clicks a clear path to underlying
+ * controls (like a mod's top-right refresh/search buttons) while still
+ * revealing pane actions when the user pauses in the corner.
+ */
+export const MOD_HOVER_DELAY_MS = 400;

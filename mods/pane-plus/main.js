@@ -25,7 +25,7 @@ import {
   closeOverlay,
   nextCommand,
 } from "herdr";
-import { splitRequest, menuRows, actions } from "./pane.js";
+import { splitRequest, menuRows, actions, isModPane, MOD_HOVER_DELAY_MS } from "./pane.js";
 
 /** How often an installed `new-pane` is looked for again. */
 const PROBE_MS = 15000;
@@ -80,6 +80,8 @@ export default class PanePlus extends View {
     }
 
     this.hovered = false;
+    this.modHovered = false;
+    this.modHoverToken = 0;
     this.withChooser = false;
     this.probe(cx);
     cx.timer.every(PROBE_MS, (cx) => this.probe(cx));
@@ -160,6 +162,28 @@ export default class PanePlus extends View {
       .child(glyph);
   }
 
+  /**
+   * Updates hover state for mod panes with a dwell timer.
+   * Quick clicks on underlying controls pass through, while hovering
+   * for MOD_HOVER_DELAY_MS reveals the action pill.
+   */
+  setModHovered(hovered, cx) {
+    const token = ++this.modHoverToken;
+    if (hovered) {
+      cx.timer.after(MOD_HOVER_DELAY_MS, (cx) => {
+        if (this.modHoverToken === token) {
+          this.modHovered = true;
+          cx.notify();
+        }
+      });
+    } else {
+      if (this.modHovered) {
+        this.modHovered = false;
+        cx.notify();
+      }
+    }
+  }
+
   render(cx) {
     if (props()?.menu) return this.renderMenu(cx);
 
@@ -176,6 +200,48 @@ export default class PanePlus extends View {
       : icon(p.program, 14, t.dim);
     const st = p.status;
     const pane = p.pane;
+
+    if (isModPane(p)) {
+      // In a full mod pane (e.g. git-graph, file-editor), the mod owns its own header
+      // and controls. Keep the background transparent so clicks pass through to the mod.
+      // The hover trigger is scoped to the top-right corner with a dwell delay so quick clicks
+      // on underlying controls (like refresh or search) are never blocked.
+      return h_flex()
+        .id(`pane-plus-head-${pane}`)
+        .size_full()
+        .px(8)
+        .items_center()
+        .justify_end()
+        .child(
+          h_flex()
+            .id(`pane-plus-trigger-${pane}`)
+            .min_w(126)
+            .h_full()
+            .items_center()
+            .justify_end()
+            .on_hover((hovered, cx) => this.setModHovered(hovered, cx))
+            .when(this.modHovered, (el) =>
+              el.child(
+                h_flex()
+                  .id(`pane-plus-pill-${pane}`)
+                  .gap(2)
+                  .px(4)
+                  .py(2)
+                  .rounded(6)
+                  .bg(t.raised)
+                  .border_1()
+                  .border_color(t.border)
+                  .items_center()
+                  .child(this.button(t, `ph-r-${pane}`, svg("mods/pane-plus/split-right.svg").size(14), "Split right", () => this.split(p, "right")))
+                  .child(this.button(t, `ph-d-${pane}`, svg("mods/pane-plus/split-down.svg").size(14), "Split down", () => this.split(p, "down")))
+                  .when(p.movable, (row) => row.child(this.button(t, `ph-m-${pane}`, svg("mods/pane-plus/move.svg").size(14), "Move pane", () => this.openMenu(p))))
+                  .child(this.button(t, `ph-z-${pane}`, svg(p.zoomed ? "mods/pane-plus/unzoom.svg" : "mods/pane-plus/zoom.svg").size(14), p.zoomed ? "Unzoom" : "Zoom", () => run("pane.zoom", { pane })))
+                  .child(this.button(t, `ph-x-${pane}`, svg("mods/pane-plus/close.svg").size(14), "Close pane", () => run("pane.close", { pane })))
+              )
+            )
+        );
+    }
+
     return h_flex()
       .id(`pane-plus-head-${pane}`)
       .size_full()

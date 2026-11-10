@@ -1,6 +1,6 @@
 import test, { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { splitDirection, splitRequest, menuRows, actions } from "../mods/pane-plus/pane.js";
+import { splitDirection, splitRequest, menuRows, actions, isModPane, MOD_HOVER_DELAY_MS } from "../mods/pane-plus/pane.js";
 import { ownPane, openArgs, chooserAgents } from "../mods/new-pane/chooser.js";
 
 describe("splitDirection", () => {
@@ -56,6 +56,24 @@ describe("menuRows/actions", () => {
       "zoom",
       "close",
     ]);
+  });
+});
+
+describe("isModPane", () => {
+  it("detects mod panes like git-graph and file-editor", () => {
+    assert.equal(isModPane({ pane: "p1", mod: "git-graph" }), true);
+    assert.equal(isModPane({ pane: "p2", mod: "file-editor" }), true);
+  });
+
+  it("returns false for terminal panes and choosers", () => {
+    assert.equal(isModPane({ pane: "p1", terminal: "t1" }), false);
+    assert.equal(isModPane({ pane: "p2", mod: "new-pane" }), false);
+    assert.equal(isModPane(null), false);
+    assert.equal(isModPane(undefined), false);
+  });
+
+  it("defines a deliberate dwell delay between 300ms and 600ms", () => {
+    assert.ok(MOD_HOVER_DELAY_MS >= 300 && MOD_HOVER_DELAY_MS <= 600);
   });
 });
 
