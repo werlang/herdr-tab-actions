@@ -39,8 +39,14 @@ Right-clicking a terminal pane opens the same menu rooted on that pane's termina
 
 ## Watch out
 
-- **Both mods are required:** `tabs-ref` depends on `ref-menu`; installing only one loses either the tab menu or the pane menu.
-- `space-pin` (from `herdr-space-actions`) is optional: it provides the hidden New tab placeholder that `tabs-ref` hides and restores. Without it, the tab bar still works. The placeholder icon is bundled in `mods/tabs-ref/new-tab.svg`.
+- **Each mod works alone.** They are meant to be used together, but neither needs the other:
+  - `tabs-ref` without `ref-menu`: tab right-click opens Herdr's own `menu` (no Copy reference, no Pin tab; pins already set stay in front and keep their `cmd+w` protection).
+  - `ref-menu` without `tabs-ref`: Copy reference still works from tabs and panes; **Pin tab** is shown only while `tabs-ref` is in the layout.
+- Optional mods from other repos are looked for in the live `mods/` folder every few seconds, so installing or turning one off applies live:
+  - `space-pin` (`herdr-space-actions`): the hidden New tab placeholder. Without it, `cmd+t` opens a terminal tab and closing the last tab closes the space, as in Herdr.
+  - `new-menu-plus` (`herdr-space-actions`): the `+` menu. Without it, `+` opens a terminal tab.
+  - `agent-chat` (`herdr-agent-chat`): the Original / Chat toggle. Without it, the toggle is hidden.
+- Every icon `tabs-ref` draws is bundled in its own folder (`new-tab.svg`, `pin.svg`, `terminal.svg`, `chat.svg`); it reads no other mod's files.
 - `cmd+w` must point at `tabs-ref.closeTab` (not `tab.close`) for pinned tabs to protect themselves.
 - Linux **Copy reference** needs `wl-copy` or `xclip`.
 - Do not rename `tabs-ref` or `ref-menu`: asset paths and `openOverlay` calls use those folder names.

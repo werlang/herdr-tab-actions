@@ -72,11 +72,13 @@ Os `tabs` e `menu` originais do Herdr continuam intocados. Se o layout for reset
 
 ## Integrações opcionais
 
-O mod `tabs-ref` detecta em tempo de inicialização a presença de outros mods opcionais:
+Nenhum mod deste repo depende de outro mod (nem deste repo nem de outros): cada um é instalável sozinho. `tabs-ref` procura os mods opcionais na pasta live (`mods/<nome>/mod.json`) ao iniciar e a cada 5 s, então instalar ou desativar um deles vale na hora. Ícones ficam sempre na pasta do próprio mod; nunca use `svg("mods/<outro-mod>/...")`.
+
+- `ref-menu` (deste repo): quando instalado, é o menu do clique direito numa aba. Sem ele, abre o `menu` do Herdr (sem Copy reference nem Pin tab). Do outro lado, o `ref-menu` só mostra **Pin tab** enquanto `tabs-ref` estiver montado no layout, e só cria o placeholder ao fechar a última aba se `space-pin` estiver instalado.
 
 - `new-menu-plus` (do repositório `herdr-space-actions`): quando instalado, o botão `+` abre o overlay de criação rápida de abas. Sem ele, o botão `+` executa diretamente a ação padrão `tab.new` no space ativo. O atalho antigo `cmd+opt+t` (`tabs-ref.newMenu`) foi removido: o `cmd+t` já abre a aba New tab.
-- `agent-chat` (do repositório `herdr-agent-chat`): quando instalado, exibe o toggle Original / Chat na barra de abas para alternar ou criar o split de chat. Sem ele, a barra de alternância de chat não é renderizada.
-- `space-pin` (do repositório `herdr-space-actions`): é a aba placeholder **New tab** que o `tabs-ref` esconde, restaura e seleciona. O ícone usado na barra é uma cópia local em `mods/tabs-ref/new-tab.svg`, para o repo continuar publicável sozinho. Sem `space-pin`, a barra de abas funciona, mas não há placeholder de space pinado.
+- `agent-chat` (do repositório `herdr-agent-chat`): quando instalado, exibe o toggle Original / Chat na barra de abas para alternar ou criar o split de chat. Sem ele, a barra de alternância de chat não é renderizada. Os ícones do toggle são cópias locais (`mods/tabs-ref/terminal.svg`, `chat.svg`).
+- `space-pin` (do repositório `herdr-space-actions`): é a aba placeholder **New tab** que o `tabs-ref` esconde, restaura e seleciona. O ícone usado na barra é uma cópia local em `mods/tabs-ref/new-tab.svg`, para o repo continuar publicável sozinho. Sem `space-pin`, a barra de abas funciona, mas não há placeholder de space pinado: `cmd+t` abre uma aba de terminal e fechar a última aba fecha o space, como no Herdr.
 
 ## Testes
 

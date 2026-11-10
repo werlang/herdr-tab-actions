@@ -20,6 +20,19 @@ Right-click a tab to pin it:
 - **New tab placeholder:** the hidden placeholder is `space-pin` from [`herdr-space-actions`](https://github.com/werlang/herdr-space-actions). It is optional; without it, the tab bar still works but has no placeholder to hide or restore. The icon used for it is bundled here. Bind `cmd-t` to `tabs-ref.newTab` to open or select it; without `tabs-ref`, use `spaces-plus.newTerminal` or `tab.new`.
 - **New tab button at the end of the strip:** the `+` sits after the last visible tab and scrolls with the tabs. It opens `new-menu-plus` in one click when that mod is installed; otherwise it opens a terminal tab directly.
 
+## Each mod works alone
+
+`tabs-ref` and `ref-menu` are designed together, but you can install either one by itself, and neither needs a mod from another repo:
+
+| Installed | What you get |
+|---|---|
+| `tabs-ref` only | Pinned tabs, `cmd+w` protection, `cmd+1..9`. Tab right-click opens Herdr's own menu. |
+| `ref-menu` only | Copy reference on tabs and panes. **Pin tab** appears only while `tabs-ref` is in your layout. |
+| `space-pin` missing | `cmd+t` opens a terminal tab; closing the last tab closes the space, as in Herdr. |
+| `new-menu-plus` / `agent-chat` missing | `+` opens a terminal tab; the Original / Chat toggle is hidden. |
+
+Optional mods are detected from `~/.config/herdr-app/mods/` every few seconds, so installing or turning one off applies live.
+
 ## Copy reference
 
 Right-click a tab or terminal pane → **Copy reference · <program>**.
