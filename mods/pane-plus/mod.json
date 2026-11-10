@@ -1,0 +1,15 @@
+{
+  "name": "pane-plus",
+  "version": "0.1.0",
+  "title": "Pane Plus",
+  "description": "Pane header with split right/down, move/reorder, zoom, and close; splits open the New pane chooser",
+  "place": "none",
+  "overlay": {
+    "width": 210,
+    "height": 300
+  },
+  "cloned_from": {
+    "name": "pane",
+    "version": "0.1.12"
+  }
+}
