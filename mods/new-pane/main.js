@@ -149,7 +149,11 @@ export default class NewPane extends View {
       .justify_center()
       .p(16)
       .track_focus(this.handle)
-      .on_mouse_down("left", () => { this.handle?.focus(); })
+      .on_mouse_down("left", () => {
+        this.handle?.focus();
+        const pane = this.own();
+        if (pane) run("pane.focus", { pane });
+      })
       .on_key_down((e) => {
         if (e.modifiers.control || e.modifiers.platform || e.modifiers.alt) return;
         // GPUI reports named keys in lowercase ("enter"); keep "Enter" too.
