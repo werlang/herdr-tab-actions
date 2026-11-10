@@ -1,6 +1,7 @@
 import test, { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { splitDirection, splitRequest, menuRows, actions } from "../mods/pane-plus/pane.js";
+import { ownPane, openArgs, chooserAgents } from "../mods/new-pane/chooser.js";
 
 describe("splitDirection", () => {
   it("keeps Herdr's right/down directions", () => {
@@ -55,5 +56,65 @@ describe("menuRows/actions", () => {
       "zoom",
       "close",
     ]);
+  });
+});
+
+describe("ownPane", () => {
+  const chooser = (pane) => ({ pane, mod: "new-pane" });
+
+  it("uses the focused chooser when a tab has more than one", () => {
+    assert.equal(ownPane([chooser("p1"), chooser("p2")], "p2"), "p2");
+  });
+
+  it("accepts the only chooser in the tab", () => {
+    assert.equal(ownPane([{ pane: "p0", mod: "file-editor" }, chooser("p1")], "p0"), "p1");
+  });
+
+  it("refuses to guess between two choosers when neither is focused", () => {
+    assert.equal(ownPane([chooser("p1"), chooser("p2")], "p0"), null);
+    assert.equal(ownPane([chooser("p1"), chooser("p2")], null), null);
+  });
+
+  it("returns null when the tab has no chooser", () => {
+    assert.equal(ownPane([{ pane: "p0", mod: "file-editor" }], "p0"), null);
+    assert.equal(ownPane([], null), null);
+    assert.equal(ownPane(null, null), null);
+  });
+});
+
+describe("openArgs", () => {
+  it("opens on the same side as the split, with the folder", () => {
+    assert.deepEqual(openArgs("right", "/repo", null), { place: "right", folder: "/repo" });
+    assert.deepEqual(openArgs("down", "/repo", null), { place: "down", folder: "/repo" });
+  });
+
+  it("adds the agent argv and name when a choice is given", () => {
+    assert.deepEqual(openArgs("right", "/repo", { argv: ["claude"], name: "Claude" }), {
+      place: "right",
+      folder: "/repo",
+      argv: ["claude"],
+      name: "Claude",
+    });
+  });
+
+  it("omits empty values", () => {
+    assert.deepEqual(openArgs("right", undefined, {}), { place: "right" });
+  });
+});
+
+describe("chooserAgents", () => {
+  it("keeps installed agents, sorted by name", () => {
+    const agents = [
+      { name: "Zed", installed: true },
+      { name: "Claude", installed: true },
+      { name: "Codex", installed: false },
+    ];
+    assert.deepEqual(chooserAgents(agents).map((a) => a.name), ["Claude", "Zed"]);
+  });
+
+  it("handles missing lists", () => {
+    assert.deepEqual(chooserAgents(null), []);
+    assert.deepEqual(chooserAgents(undefined), []);
+    assert.deepEqual(chooserAgents("nope"), []);
   });
 });

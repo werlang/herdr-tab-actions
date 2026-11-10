@@ -1,0 +1,8 @@
+{
+  "name": "new-pane",
+  "version": "0.1.0",
+  "title": "New Pane",
+  "description": "Terminal and agent chooser for a split pane, sharing the New tab screen",
+  "place": "none",
+  "focusable": true
+}
