@@ -4,7 +4,7 @@ Four independent mods for Herdr's tab bar and panes, shipped together because
 they cover the same workspace surface:
 
 - **Pin tab / Unpin tab** — right-click any tab to pin it. Pinned tabs show a pin icon and stay first in the tab bar.
-- **Preview tabs** — tabs opened as temporary previews by `file-editor` show their name in italic; double-click the tab (or pin it) to keep it permanently.
+- **Preview tabs** — tabs opened as temporary previews by `file-editor` are dimmed and show a hollow dot; double-click the tab (or pin it) to keep it permanently.
 - **Close protection** — bind `cmd+w` to `tabs-ref.closeTab`; on a pinned tab it selects the nearest tab instead of closing.
 - **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context for another agent.
 - **Pane header** — a compact header on each pane with split right/down, move/reorder, zoom and close.
