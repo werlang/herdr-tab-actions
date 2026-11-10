@@ -88,6 +88,19 @@ export default class Tabs extends View {
     this.probeMods(cx);
     cx.timer.every(PROBE_MS, (cx) => this.probeMods(cx));
 
+    // file-editor publishes its preview tabs in shared state; shared() is not
+    // reactive, so poll the small signature to redraw italic labels when a tab
+    // is promoted from the editor side or by typing in it.
+    this.previewSig = this.previewSignature();
+    cx.timer.every(400, (cx) => {
+      const promoted = this.promotePinnedPreviews();
+      const signature = this.previewSignature();
+      if (promoted || signature !== this.previewSig) {
+        this.previewSig = signature;
+        cx.notify();
+      }
+    });
+
     // cmd-w is bound to tabs-ref.closeTab: a pinned tab is not closed, the
     // closest other tab is shown instead. `reorder` comes from the tab menu
     // after it toggles shared("tabs.pinned").
@@ -195,6 +208,84 @@ export default class Tabs extends View {
   }
 
   /**
+   * The file-editor openTabs entry for a tab when it is a preview (temporary)
+   * tab. File-editor publishes `preview: true` in `shared("file-editor.openTabs")`;
+   * matching by tab id first and by the exact tab name while the freshly
+   * created tab has not recorded its id yet.
+   *
+   * @param {{ id: string, name: string }} tab
+   * @returns {{ key: string, entry: Record<string, any> } | null}
+   */
+  previewEntry(tab) {
+    const map = shared("file-editor.openTabs");
+    if (!map || typeof map !== "object") return null;
+    for (const [key, entry] of Object.entries(map)) {
+      if (!entry || typeof entry !== "object" || entry.preview !== true) continue;
+      if (typeof entry.tabId === "string" && entry.tabId.length > 0) {
+        if (entry.tabId === tab.id) return { key, entry };
+        continue;
+      }
+      if (typeof entry.tabName === "string" && entry.tabName && entry.tabName === tab.name) {
+        return { key, entry };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Promotes a preview tab to permanent, so opening another file no longer
+   * replaces it. Returns false when the tab is not a file-editor preview.
+   *
+   * @param {{ id: string, name: string }} tab
+   * @returns {boolean}
+   */
+  promotePreview(tab) {
+    const found = this.previewEntry(tab);
+    if (!found) return false;
+    const { preview: _preview, ...entry } = found.entry;
+    setShared("file-editor.openTabs", {
+      ...shared("file-editor.openTabs"),
+      [found.key]: { ...entry, tabId: found.entry.tabId || tab.id },
+    });
+    return true;
+  }
+
+  /**
+   * Stable signature of the preview tabs currently recorded by file-editor.
+   * Used to redraw when that mod promotes a tab (shared state is not reactive).
+   *
+   * @returns {string}
+   */
+  previewSignature() {
+    const map = shared("file-editor.openTabs");
+    if (!map || typeof map !== "object") return "";
+    return Object.entries(map)
+      .filter(([, entry]) => entry && entry.preview === true)
+      .map(([key, entry]) => `${key}:${entry.tabId || entry.tabName || ""}`)
+      .sort()
+      .join("|");
+  }
+
+  /**
+   * Pinning keeps a tab, so a pinned preview is promoted even when the pin
+   * came from ref-menu (which writes shared("tabs.pinned") directly and does
+   * not go through togglePin).
+   *
+   * @returns {boolean} whether any preview was promoted
+   */
+  promotePinnedPreviews() {
+    const pinned = this.pinnedSet();
+    if (!pinned.size) return false;
+    let promoted = false;
+    for (const space of spaces()) {
+      for (const tab of space.tabs ?? []) {
+        if (pinned.has(tab.id) && this.promotePreview(tab)) promoted = true;
+      }
+    }
+    return promoted;
+  }
+
+  /**
    * cmd+t: select (or create) the space's New tab placeholder.
    *
    * The keyboard itself is taken by `space-pin`, which owns the focus handle:
@@ -290,7 +381,13 @@ export default class Tabs extends View {
     const tab = (space?.tabs ?? []).find((t) => t.active);
     if (!tab || this.isPlaceholder(tab.id)) return;
     const pinned = this.pinnedSet();
-    if (pinned.has(tab.id)) pinned.delete(tab.id); else pinned.add(tab.id);
+    if (pinned.has(tab.id)) {
+      pinned.delete(tab.id);
+    } else {
+      // Pinning means "keep": a preview tab must not be replaced later.
+      this.promotePreview(tab);
+      pinned.add(tab.id);
+    }
     setShared("tabs.pinned", [...pinned]);
     this.reorder();
   }
@@ -388,6 +485,7 @@ export default class Tabs extends View {
       const name = this.isPlaceholder(c.id, allPanes) ? "New tab" : (/^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name);
       const isChatZoomed = c.zoomed && allPanes.some(p => p.tab === c.id && p.mod === "agent-chat" && p.zoomed);
       const tabTitle = c.zoomed && !isChatZoomed ? `${name} Z` : name;
+      const preview = Boolean(this.previewEntry(c));
       return h_flex().id(`tab-${c.id}`).h(29).px(10).gap(7).rounded(7).items_center().flex_none().text_size(12.8)
         .border(1).border_color(c.active ? t.border : t.chrome).bg(c.active ? t.raised : t.chrome).text_color(c.active ? t.foreground : t.muted)
         .hover(s => s.bg(t.hover))
@@ -395,7 +493,12 @@ export default class Tabs extends View {
           cx.stop_propagation();
           this.pressed = i;
           this.pressedAt = Date.now();
-          if (e.click_count === 2) run("tab.rename", { id: c.id });
+          if (e.click_count === 2) {
+            // A preview tab becomes permanent; permanent tabs keep the old
+            // double-click-to-rename behavior.
+            if (this.promotePreview(c)) cx.notify();
+            else run("tab.rename", { id: c.id });
+          }
         })
         .on_mouse_up("left", (_e, cx) => {
           const from = this.pressed; this.pressed = null;
@@ -413,7 +516,7 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.openTabMenu(c, space); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
         .when(!program?.icon && this.isPlaceholder(c.id, allPanes), el => el.child(svg("mods/tabs-ref/new-tab.svg").size(13).text_color(t.muted)))
-        .child(div().max_w(170).truncate().child(tabTitle))
+        .child(div().max_w(170).truncate().when(preview, (el) => el.italic()).when(preview, (el) => el.tooltip("Preview tab — double-click to keep it open")).child(tabTitle))
         .when(pinned.has(c.id) && !isHolder(c), el => el.child(svg("mods/tabs-ref/pin.svg").size(11).flex_none().text_color(t.accent)))
         .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
         .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))

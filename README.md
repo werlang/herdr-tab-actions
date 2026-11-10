@@ -3,6 +3,7 @@
 Pinned tabs with close protection, plus copy reference for terminal panes and tabs in Herdr:
 
 - **Pin tab / Unpin tab** — right-click any tab to pin it. Pinned tabs show a pin icon and stay first in the tab bar.
+- **Preview tabs** — tabs opened as temporary previews by `file-editor` show their name in italic; double-click the tab (or pin it) to keep it permanently.
 - **Close protection** — bind `cmd+w` to `tabs-ref.closeTab` so pressing close on a pinned tab navigates to the nearest tab instead of closing it.
 - **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context to the clipboard for another agent to control.
 
@@ -18,6 +19,7 @@ Right-click a tab to pin it:
 - **`cmd+1..9` follows the tab bar:** bind `cmd-1`..`cmd-9` to `tabs-ref.select1`..`tabs-ref.select9`. Only visible tabs count, the hidden New tab placeholder is never selected, and a number past the last tab is ignored without an error (built-in `tab.select:N` errors there and counts hidden tabs).
 - **`cmd+w` never closes a pinned tab:** bind `cmd-w` to `tabs-ref.closeTab`. On a pinned tab, it selects the closest available tab instead of closing. Unpinned tabs close normally. Explicit **Close** in the right-click menu or clicking the close button still closes a pinned tab.
 - **New tab placeholder:** the hidden placeholder is `space-pin` from [`herdr-space-actions`](https://github.com/werlang/herdr-space-actions). It is optional; without it, the tab bar still works but has no placeholder to hide or restore. The icon used for it is bundled here. Bind `cmd-t` to `tabs-ref.newTab` to open or select it; without `tabs-ref`, use `spaces-plus.newTerminal` or `tab.new`.
+- **Preview tabs:** when [`file-editor`](https://github.com/werlang/herdr-file-editor) is installed, a file opened with a single click is published as a preview in `shared("file-editor.openTabs")`. Its tab name is italic, double-clicking promotes it to permanent instead of renaming, and pinning also promotes it. Opening another preview replaces the previous temporary tab from the editor side.
 - **New tab button at the end of the strip:** the `+` sits after the last visible tab and scrolls with the tabs. It opens `new-menu-plus` in one click when that mod is installed; otherwise it opens a terminal tab directly.
 
 ## Each mod works alone

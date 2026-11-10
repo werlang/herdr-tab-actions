@@ -10,6 +10,7 @@ Right-clicking a tab opens a context menu with:
 
 - One **Copy reference · <app>** row per live terminal in the tab.
 - **Pin tab** / **Unpin tab** — pinned tabs show a pin icon and stay first among regular tabs.
+- **Preview tabs** — file-editor preview tabs are italic in the tab bar; double-click or **Pin tab** promotes them to permanent.
 - **Rename**
 - **New tab**
 - separator

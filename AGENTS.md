@@ -79,6 +79,11 @@ Nenhum mod deste repo depende de outro mod (nem deste repo nem de outros): cada 
 - `new-menu-plus` (do repositório `herdr-space-actions`): quando instalado, o botão `+` abre o overlay de criação rápida de abas. Sem ele, o botão `+` executa diretamente a ação padrão `tab.new` no space ativo. O atalho antigo `cmd+opt+t` (`tabs-ref.newMenu`) foi removido: o `cmd+t` já abre a aba New tab.
 - `agent-chat` (do repositório `herdr-agent-chat`): quando instalado, exibe o toggle Original / Chat na barra de abas para alternar ou criar o split de chat. Sem ele, a barra de alternância de chat não é renderizada. Os ícones do toggle são cópias locais (`mods/tabs-ref/terminal.svg`, `chat.svg`).
 - `space-pin` (do repositório `herdr-space-actions`): é a aba placeholder **New tab** que o `tabs-ref` esconde, restaura e seleciona. O ícone usado na barra é uma cópia local em `mods/tabs-ref/new-tab.svg`, para o repo continuar publicável sozinho. Sem `space-pin`, a barra de abas funciona, mas não há placeholder de space pinado: `cmd+t` abre uma aba de terminal e fechar a última aba fecha o space, como no Herdr.
+- `file-editor` (do repositório `herdr-file-editor`): quando instalado, publica `preview: true` em `shared("file-editor.openTabs")` para abas abertas com um clique. O `tabs-ref` desenha o nome em itálico, promove a aba a permanente no duplo clique (em vez de abrir o rename) e promove também ao pinar. Sem o `file-editor`, não há abas de preview e o duplo clique continua renomeando. O estado compartilhado não é reativo: um poll de 400 ms compara a assinatura das previews e redesenha a barra quando muda.
+
+## Preview de arquivos
+
+Abas de preview (temporárias) vêm do `file-editor` e são identificadas por `entry.preview === true` no mapa `shared("file-editor.openTabs")`. O `tabs-ref` casa primeiro por `tabId` e, enquanto a aba recém-criada ainda não registrou o id, pelo `tabName` exato. Abrir outro arquivo em preview substitui a aba temporária anterior; editar a aba ou piná-la a torna permanente. O duplo clique numa aba permanente mantém o comportamento antigo de renomear.
 
 ## Testes
 
