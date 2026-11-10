@@ -114,7 +114,29 @@ function activeTab() {
   return { space, tab };
 }
 
-function items(p, git) {
+/**
+ * One split menu item. When the `new-pane` chooser is installed and the target
+ * is a real model pane, the split opens that chooser in the new pane; otherwise
+ * it starts a terminal directly, as before.
+ *
+ * @param {"right" | "down"} direction
+ * @param {{pane?: string}} target
+ * @param {{id?: string} | null} space
+ * @param {boolean} withChooser
+ * @returns {[string, string, Record<string, unknown>]}
+ */
+function splitItem(direction, target, space, withChooser) {
+  const label = direction === "right" ? "Split right" : "Split down";
+  const pane = panes().find((p) => p.pane === target.pane);
+  if (!withChooser || !pane) return [label, "pane.split", { direction, pane: target.pane }];
+  const folder = pane.cwd || (space && place(space));
+  const props = { direction };
+  if (space?.id) props.space = space.id;
+  if (folder) props.folder = folder;
+  return [label, "pane.split", { direction, pane: target.pane, mod: "new-pane", props }];
+}
+
+function items(p, git, withChooser) {
   p = p ?? {};
   const tg = p.target ?? {};
   if (!p.tab) {
@@ -133,8 +155,8 @@ function items(p, git) {
       const toProgram = term?.labels?.["herdr.right-click"] === "program";
       return [
         ...(term ? [copyItem(term, space, tab)] : []),
-        ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
-        ["Split down", "pane.split", { direction: "down", pane: tg.pane }],
+        splitItem("right", tg, space, withChooser),
+        splitItem("down", tg, space, withChooser),
         ["Zoom", "pane.zoom", { pane: tg.pane }],
         ...(term
           ? [
@@ -204,6 +226,13 @@ export default class Menu extends View {
     // one behind while that mod is installed (checked before any click lands).
     this.hasPlaceholder = false;
     cx.spawn(async () => { this.hasPlaceholder = await installed("space-pin"); });
+    // The New pane chooser is optional too: splits open it when installed,
+    // else they keep starting terminals directly.
+    this.hasNewPane = false;
+    cx.spawn(async (cx) => {
+      this.hasNewPane = await installed("new-pane");
+      cx.notify();
+    });
     this.handle = cx.focus_handle();
     this.handle.focus();
     const p = props();
@@ -217,7 +246,7 @@ export default class Menu extends View {
   }
 
   async choose(i, cx) {
-    const it = items(props(), this.git)[i];
+    const it = items(props(), this.git, this.hasNewPane)[i];
     if (!it) return;
     closeOverlay(props()?.overlay);
     if (it[1] === "ref.copy") {
@@ -273,7 +302,7 @@ export default class Menu extends View {
    */
   render(cx) {
     const t = theme();
-    const list = items(props(), this.git);
+    const list = items(props(), this.git, this.hasNewPane);
     if (list.length > 0) {
       this.at = Math.max(0, Math.min(this.at, list.length - 1));
     } else {
