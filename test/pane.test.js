@@ -68,6 +68,7 @@ describe("isModPane", () => {
   it("returns false for terminal panes and choosers", () => {
     assert.equal(isModPane({ pane: "p1", terminal: "t1" }), false);
     assert.equal(isModPane({ pane: "p2", mod: "new-pane" }), false);
+    assert.equal(isModPane({ pane: "p3", mod: "space-pin" }), false);
     assert.equal(isModPane(null), false);
     assert.equal(isModPane(undefined), false);
   });

@@ -166,13 +166,15 @@ export default class PanePlus extends View {
     const t = theme();
     const p = this.me();
     if (!p) return div();
-    // A chooser pane has no program: name it like its own screen.
-    const chooser = p.mod === "new-pane";
+    // A chooser or placeholder pane has no program: name it like its own screen.
+    const isNewPane = p.mod === "new-pane";
+    const isNewTab = p.mod === "space-pin";
+    const chooser = isNewPane || isNewTab;
     const name = chooser
-      ? "New pane"
+      ? (isNewTab ? "New tab" : "New pane")
       : ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
     const pic = chooser
-      ? svg("mods/pane-plus/new-pane.svg").size(14).flex_none().text_color(t.dim)
+      ? svg(isNewTab ? "mods/pane-plus/new-tab.svg" : "mods/pane-plus/new-pane.svg").size(14).flex_none().text_color(t.dim)
       : icon(p.program, 14, t.dim);
     const st = p.status;
     const pane = p.pane;

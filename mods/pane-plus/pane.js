@@ -79,7 +79,7 @@ export function actions(rows = menuRows()) {
  * @returns {boolean}
  */
 export function isModPane(pane) {
-  return Boolean(pane?.mod && pane.mod !== "new-pane");
+  return Boolean(pane?.mod && pane.mod !== "new-pane" && pane.mod !== "space-pin");
 }
 
 /**
