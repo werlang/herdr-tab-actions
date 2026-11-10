@@ -1,8 +1,9 @@
 // How notifications look. Anything can post one with notify({ title, body,
 // level, icon, action }). Clicking the toast opens a modal dialog
 // showing the full message, clipboard copy, and optional action.
+// The close button dismisses the toast immediately.
 
-import { View, div, image } from "gpui-kit";
+import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, closeOverlay, openOverlay, run, theme } from "herdr";
 import { DOT, copyableText, buildModalOverlay, splitLines } from "./toast-logic.js";
@@ -65,6 +66,24 @@ export default class Toast extends View {
                 .child(p.body ?? ""),
             ),
           ),
+      )
+      .child(
+        h_flex()
+          .id("toast-dismiss")
+          .size(20)
+          .flex_none()
+          .items_center()
+          .justify_center()
+          .rounded(4)
+          .cursor_pointer()
+          .text_color(t.muted)
+          .hover((s) => s.bg(t.raised).text_color(t.foreground))
+          .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+          .on_click((_e, cx) => {
+            cx.stop_propagation();
+            if (p.overlay) closeOverlay(p.overlay);
+          })
+          .child(svg("mods/toast/close.svg").size(12)),
       );
   }
 
@@ -127,7 +146,23 @@ export default class Toast extends View {
               .text_color(t.foreground)
               .child(p.title ?? "Notification"),
           )
-          .child(div().text_size(11).text_color(t.dim).child("Esc")),
+          .child(
+            h_flex()
+              .id("toast-modal-close-icon")
+              .size(20)
+              .flex_none()
+              .items_center()
+              .justify_center()
+              .rounded(4)
+              .cursor_pointer()
+              .text_color(t.dim)
+              .hover((s) => s.bg(t.raised).text_color(t.foreground))
+              .on_click((_e, cx) => {
+                cx.stop_propagation();
+                if (p.overlay) closeOverlay(p.overlay);
+              })
+              .child(svg("mods/toast/close.svg").size(12)),
+          ),
       )
       .child(
         v_flex()
