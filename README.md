@@ -1,13 +1,49 @@
-# Herdr Tab Actions
+# Herdr Tab & Pane Actions
 
-Pinned tabs with close protection, plus copy reference for terminal panes and tabs in Herdr:
+Four independent mods for Herdr's tab bar and panes, shipped together because
+they cover the same workspace surface:
 
 - **Pin tab / Unpin tab** — right-click any tab to pin it. Pinned tabs show a pin icon and stay first in the tab bar.
 - **Preview tabs** — tabs opened as temporary previews by `file-editor` show their name in italic; double-click the tab (or pin it) to keep it permanently.
-- **Close protection** — bind `cmd+w` to `tabs-ref.closeTab` so pressing close on a pinned tab navigates to the nearest tab instead of closing it.
-- **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context to the clipboard for another agent to control.
+- **Close protection** — bind `cmd+w` to `tabs-ref.closeTab`; on a pinned tab it selects the nearest tab instead of closing.
+- **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context for another agent.
+- **Pane header** — a compact header on each pane with split right/down, move/reorder, zoom and close.
+- **New pane chooser** — a split opens the same Terminal/agent screen as the New tab placeholder; picking an option starts it in the split.
 
-![Herdr Tab Actions](preview.png)
+![Herdr Tab & Pane Actions](preview.png)
+
+## What's inside
+
+| Mod | What it does | Where it mounts |
+|---|---|---|
+| `tabs-ref` | Tab bar: pinned tabs, `cmd+w` protection, preview tabs, the `+` menu | `tabs` block |
+| `ref-menu` | Tab and pane right-click menu: Copy reference, Pin tab, split, zoom, close | root `terminal_menu` |
+| `pane-plus` | Pane header: split right/down, move/reorder, zoom, close | `pane.header` |
+| `new-pane` | Terminal/agent chooser for a new split | created by `pane-plus` or `ref-menu`; no layout slot |
+
+Each mod works alone. The repo is only the shipping unit: install all four for
+the full feature, or only the ones you want.
+
+## Splitting and reordering panes
+
+`pane-plus` draws the header on every pane; the layout's `reveal` decides when
+it shows. Hover a pane and use:
+
+- **Split right** — side by side; the new pane goes to the right.
+- **Split down** — stacked; the new pane goes below.
+- **Move** — opens a menu with Move left / right / up / down (`pane.swap`).
+- **Zoom / close** — the same actions as Herdr's shipped pane header.
+
+When `new-pane` is installed, a split opens that chooser first. It lists
+**Terminal** (`T` or Enter) and the installed agents (`1`–`9`). Choosing one
+starts it in the split and closes the chooser, so the terminal or agent takes
+the split's place. Without `new-pane`, splits start a terminal directly.
+
+You can also reorder panes without the menu: drag a pane by the app's top-center
+grip, or use `cmd-alt-shift-arrows` (`pane.swap`). Both are built into Herdr.
+
+The header needs `"lone": true` in the pane frame. Without it, a tab's only pane
+— the one where the first split starts — has no frame to draw the header on.
 
 ## Tab pinning & protection
 
@@ -24,16 +60,20 @@ Right-click a tab to pin it:
 
 ## Each mod works alone
 
-`tabs-ref` and `ref-menu` are designed together, but you can install either one by itself, and neither needs a mod from another repo:
+`tabs-ref` and `ref-menu` are designed together, `pane-plus` and `new-pane` are
+designed together, but every mod is installable on its own:
 
 | Installed | What you get |
 |---|---|
 | `tabs-ref` only | Pinned tabs, `cmd+w` protection, `cmd+1..9`. Tab right-click opens Herdr's own menu. |
-| `ref-menu` only | Copy reference on tabs and panes. **Pin tab** appears only while `tabs-ref` is in your layout. |
+| `ref-menu` only | Copy reference on tabs and panes. **Pin tab** appears only while `tabs-ref` is mounted. Splits open the chooser when `new-pane` is installed. |
+| `pane-plus` only | Pane header with split (terminal), move/reorder, zoom and close. |
+| `new-pane` only | No visible UI until something opens it with `pane.split {mod: "new-pane"}`. It is the chooser body. |
+| `new-pane` missing | Splits from `pane-plus` and `ref-menu` start terminals directly. |
 | `space-pin` missing | `cmd+t` opens a terminal tab; closing the last tab closes the space, as in Herdr. |
 | `new-menu-plus` / `agent-chat` missing | `+` opens a terminal tab; the Original / Chat toggle is hidden. |
 
-Optional mods are detected from `~/.config/herdr-app/mods/` every few seconds, so installing or turning one off applies live.
+Optional mods are detected from `~/.config/herdr-app/mods/` live — when a menu opens or on a short periodic check — so installing or turning one off applies without reopening Herdr.
 
 ## Copy reference
 
@@ -69,7 +109,8 @@ On remote machines, the address automatically includes the machine target (`mach
    ./sync.sh
    ```
 
-2. Point your **personal layout** at `tabs-ref` and `ref-menu`:
+2. Point your **personal layout** at the mods. The tab bar, the right-click menu
+   and the pane header are three separate slots:
 
    ```json
    {
@@ -79,10 +120,30 @@ On remote machines, the address automatically includes the machine target (`mach
          "id": "tabs",
          "type": "block",
          "content": { "mod": "tabs-ref" }
+       },
+       {
+         "id": "main",
+         "type": "block",
+         "content": {
+           "tab": "active",
+           "pane": {
+             "lone": true,
+             "header": {
+               "content": { "mod": "pane-plus" },
+               "height": 30,
+               "position": "top",
+               "reveal": "hover"
+             }
+           }
+         }
        }
      ]
    }
    ```
+
+   `new-pane` needs no layout slot: `pane-plus` and `ref-menu` create it inside a
+   split. Use `"reveal": "always"` instead of `"hover"` if you want the header
+   permanently visible.
 
    If using a shipped layout, clone it first:
 
@@ -90,28 +151,51 @@ On remote machines, the address automatically includes the machine target (`mach
    herdr-app do layout.clone --name main --as my-layout
    ```
 
-3. Bind `cmd-w` in `~/.config/herdr-app/keys.json` to enable pinned tab protection:
+3. Bind the tab keys in `~/.config/herdr-app/keys.json`:
 
    ```json
    {
-     "keys": {
-       "global": {
-         "cmd-w": "tabs-ref.closeTab"
-       }
+     "global": {
+       "cmd-t": "tabs-ref.newTab",
+       "cmd-w": "tabs-ref.closeTab",
+       "cmd-1": "tabs-ref.select1",
+       "cmd-2": "tabs-ref.select2",
+       "cmd-3": "tabs-ref.select3",
+       "cmd-4": "tabs-ref.select4",
+       "cmd-5": "tabs-ref.select5",
+       "cmd-6": "tabs-ref.select6",
+       "cmd-7": "tabs-ref.select7",
+       "cmd-8": "tabs-ref.select8",
+       "cmd-9": "tabs-ref.select9"
      }
    }
    ```
+
+   `cmd-d` / `cmd-shift-d` already split directly to a terminal with Herdr's
+   built-in `pane.split`. In a layout that mounts `pane-plus`, you can bind them
+   to `pane-plus.splitRight` / `pane-plus.splitDown` to open the chooser from
+   the keyboard instead, and bind `pane-plus.menu` to open the pane actions
+   menu (move/reorder, split, zoom, close). Mod commands only resolve while the
+   mod is mounted, so keep the built-in commands for layouts without
+   `pane-plus`.
 
 4. Verify:
 
    ```sh
    herdr-app check ~/.config/herdr-app/mods/tabs-ref
    herdr-app check ~/.config/herdr-app/mods/ref-menu
+   herdr-app check ~/.config/herdr-app/mods/pane-plus
+   herdr-app check ~/.config/herdr-app/mods/new-pane
    ```
+
+## What's not here
+
+- Spaces, pinning, sorting, the New tab placeholder and the space-side panels belong to [`herdr-space-actions`](https://github.com/werlang/herdr-space-actions).
+- Usage/status gauges belong to [`herdr-usage-status`](https://github.com/werlang/herdr-usage-status).
 
 ## Repository
 
-Source of truth for both mods. After edits:
+Source of truth for all four mods. After edits:
 
 ```sh
 ./sync.sh
@@ -121,7 +205,7 @@ Source of truth for both mods. After edits:
 
 This repo is an app-mod repo. To share it on `herdr.dev/mods`:
 
-- keep `mods/tabs-ref` and `mods/ref-menu` at the root;
+- keep `mods/tabs-ref`, `mods/ref-menu`, `mods/pane-plus` and `mods/new-pane` at the root;
 - keep `RECIPE.md` and `preview.png`;
 - add the topic `herdr-mod`;
 - make the repository public.
