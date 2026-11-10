@@ -6,6 +6,7 @@ Fonte da verdade dos mods de **tabs, panes e terminal references** do Herdr:
 - `mods/ref-menu` — clone do menu de contexto de pane e aba com **Pin tab / Unpin tab** e **Copy reference** (copia o endereço `hc` do terminal + contexto para a área de transferência via `ref.js`). Com `new-pane` instalado, os itens **Split right** / **Split down** abrem o chooser no pane novo; sem ele, continuam abrindo um terminal direto.
 - `mods/pane-plus` — clone do header shipped `pane`: mostra programa, pasta e status e, no hover, botões de **Split right**, **Split down**, **Move**, **Zoom** e **Close**. Os splits abrem o `new-pane` quando instalado; sem ele, abrem um terminal direto. O botão Move abre um popup próprio (props `{ menu: pane }`) com Split right/down, Move left/right/up/down, Zoom e Close.
 - `mods/new-pane` — o chooser **New pane** (mesmo visual do New tab do `space-pin`): Terminal (`T`/Enter) e agents instalados (`1`–`9`). Ao escolher, abre o terminal/agent no split e fecha o pane do chooser, então a escolha ocupa o lugar do split.
+- `mods/toast` — substituto do mod shipped `toast`: clicar em qualquer notificação abre um diálogo modal centralizado mostrando o título completo, mensagem inteira com quebras de linha preservadas e rolagem, botão para copiar mensagem para a área de transferência (`cx.write_to_clipboard`), botão para rodar a ação original (se houver) e botão Fechar/Esc. A lógica de formatação fica em `toast-logic.js` e é testada em Node puro.
 
 ## Header de pane
 

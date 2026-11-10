@@ -1,7 +1,7 @@
 # Herdr Tab & Pane Actions
 
-Four independent mods for Herdr's tab bar and panes, shipped together because
-they cover the same workspace surface:
+Five independent mods for Herdr's tab bar, panes, and toast notifications, shipped together because
+they cover the same workspace interaction surface:
 
 - **Pin tab / Unpin tab** — right-click any tab to pin it. Pinned tabs show a pin icon and stay first in the tab bar.
 - **Preview tabs** — tabs opened as temporary previews by `file-editor` are dimmed and show a hollow dot; double-click the tab (or pin it) to keep it permanently.
@@ -9,6 +9,7 @@ they cover the same workspace surface:
 - **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context for another agent.
 - **Pane header** — a compact header on each pane with split right/down, move/reorder, zoom and close.
 - **New pane chooser** — a split opens the same Terminal/agent screen as the New tab placeholder; picking an option starts it in the split.
+- **Toast modal dialogs** — clicking any notification toast expands it into a centered modal dialog with the full message, clipboard copy, and optional action run.
 
 ![Herdr Tab & Pane Actions](preview.png)
 
@@ -20,8 +21,9 @@ they cover the same workspace surface:
 | `ref-menu` | Tab and pane right-click menu: Copy reference, Pin tab, split, zoom, close | root `terminal_menu` |
 | `pane-plus` | Pane header: split right/down, move/reorder, zoom, close | `pane.header` |
 | `new-pane` | Terminal/agent chooser for a new split | created by `pane-plus` or `ref-menu`; no layout slot |
+| `toast` | Toast notification: click expands into full-message modal dialog with copy | `toast` (replaceable) |
 
-Each mod works alone. The repo is only the shipping unit: install all four for
+Each mod works alone. The repo is only the shipping unit: install all five for
 the full feature, or only the ones you want.
 
 ## Splitting and reordering panes

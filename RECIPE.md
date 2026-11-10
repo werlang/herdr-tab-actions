@@ -51,6 +51,7 @@ chooser's place.
 - `mods/ref-menu/` — clone of the shipped `menu`; adds the `ref.copy` item (clipboard writer per platform) and the Pin/Unpin tab item. With `new-pane` installed, its split items open the chooser. `ref.js` builds the reference line without importing `herdr`, keeping it testable in plain Node.
 - `mods/pane-plus/` — clone of the shipped `pane` header; adds split, move/reorder, zoom and close, and opens `new-pane` when it is installed. `pane.js` holds the split/menu rules and is testable in plain Node.
 - `mods/new-pane/` — the **New pane** chooser (Terminal + installed agents); `chooser.js` holds the pane matching and launch arguments and is testable in plain Node.
+- `mods/toast/` — replacement of Herdr's shipped `toast`; clicking a toast opens a modal dialog displaying the full message with line breaks, copy-to-clipboard button, and optional action trigger. `toast-logic.js` holds the data formatting and overlay spec logic and is testable in plain Node.
 - `shared("tabs.pinned")` — app-wide pinned tab ids.
 - `shared("new-menu.agents")` — the last agents each machine reported, shared with `space-pin` / `new-menu-plus`.
 - Layout wiring points `tabs` at `tabs-ref`, root `terminal_menu` at `ref-menu`, and the pane frame header at `pane-plus` (with `"lone": true`).
@@ -74,7 +75,7 @@ chooser's place.
 
 ## Done when
 
-- `herdr-app check` passes for `tabs-ref`, `ref-menu`, `pane-plus` and `new-pane`.
+- `herdr-app check` passes for `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane` and `toast`.
 - Right-clicking a tab shows Pin/Unpin and Copy reference.
 - Pinned tabs show a pin icon and move to the front.
 - `cmd+w` on a pinned tab selects the closest tab instead of closing.
@@ -82,4 +83,5 @@ chooser's place.
 - The pane header shows split/move/zoom/close on hover.
 - A split opens the **New pane** chooser; Terminal and agents open in that split.
 - Move reorders a pane with its neighbor.
+- Clicking any toast notification opens a modal dialog showing the full message, selectable/copyable text, and action button.
 - `herdr-app status` reports no errors.
