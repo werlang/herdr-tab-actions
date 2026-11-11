@@ -59,6 +59,7 @@ Right-click a tab to pin it:
 - **New tab placeholder:** the hidden placeholder is `space-pin` from [`herdr-space-actions`](https://github.com/werlang/herdr-space-actions). It is optional; without it, the tab bar still works but has no placeholder to hide or restore. The icon used for it is bundled here. Bind `cmd-t` to `tabs-ref.newTab` to open or select it; without `tabs-ref`, use `spaces-plus.newTerminal` or `tab.new`.
 - **Preview tabs:** when [`file-editor`](https://github.com/werlang/herdr-file-editor) is installed, a file opened with a single click is published as a preview in `shared("file-editor.openTabs")`. Its tab name is italic, double-clicking promotes it to permanent instead of renaming, and pinning also promotes it. Opening another preview replaces the previous temporary tab from the editor side.
 - **New tab button at the end of the strip:** the `+` sits after the last visible tab and scrolls with the tabs. It opens `new-menu-plus` in one click when that mod is installed; otherwise it opens a terminal tab directly.
+- **Docker panel button:** when the layout's `panel-body` stack has a `docker` block (the `docker-manager` mod), **Docker** appears left of **Files** and toggles that panel with the same per-space memory as Files/Changes. Layouts without the block keep the two-button bar.
 
 ## Each mod works alone
 
