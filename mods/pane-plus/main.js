@@ -146,10 +146,15 @@ export default class PanePlus extends View {
 
   /** One small header button. */
   button(t, id, glyph, label, action) {
-    return div()
+    // A plain div is not a flex container, so the icon sat top-left and the
+    // hit area was unreliable. h_flex centers the glyph and owns the click.
+    return h_flex()
       .id(id)
-      .p(3)
+      .size(20)
       .rounded(4)
+      .items_center()
+      .justify_center()
+      .cursor_pointer()
       .text_color(t.dim)
       .tooltip(label)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
