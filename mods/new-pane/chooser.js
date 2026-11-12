@@ -36,7 +36,9 @@ export function ownPane(panesInTab, focusedPane) {
 export function openArgs(direction, folder, choice) {
   const args = { place: direction === "down" ? "down" : "right" };
   if (folder) args.folder = folder;
-  if (choice?.argv) args.argv = choice.argv;
+  // knownAgents() returns `run`, while older callers pass `argv`; accept both.
+  const argv = Array.isArray(choice?.argv) ? choice.argv : Array.isArray(choice?.run) ? choice.run : null;
+  if (argv) args.argv = argv;
   if (choice?.name) args.name = choice.name;
   return args;
 }

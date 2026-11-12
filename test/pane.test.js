@@ -116,6 +116,15 @@ describe("openArgs", () => {
     });
   });
 
+  it("accepts the knownAgents run array as argv", () => {
+    assert.deepEqual(openArgs("right", "/repo", { run: ["codex", "--no-daemon"], name: "Codex" }), {
+      place: "right",
+      folder: "/repo",
+      argv: ["codex", "--no-daemon"],
+      name: "Codex",
+    });
+  });
+
   it("omits empty values", () => {
     assert.deepEqual(openArgs("right", undefined, {}), { place: "right" });
   });
