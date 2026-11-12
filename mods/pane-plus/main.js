@@ -112,7 +112,13 @@ export default class PanePlus extends View {
 
   /** The pane this header copy belongs to. */
   me() {
-    return panes().find((p) => p.pane === props()?.pane);
+    const byPane = panes().find((p) => p.pane === props()?.pane);
+    if (byPane) return byPane;
+    // A pane freshly created by terminal.open can briefly expose a stale pane
+    // id while the terminal id is already current. Resolve through it so the
+    // new pane's header controls keep working.
+    const terminal = props()?.terminal;
+    return terminal ? panes().find((p) => p.terminal === terminal) ?? null : null;
   }
 
   /** The space that owns a pane, for the chooser's space/folder props. */
