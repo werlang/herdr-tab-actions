@@ -44,6 +44,11 @@ the split's place. Without `new-pane`, splits start a terminal directly.
 You can also reorder panes without the menu: drag a pane by the app's top-center
 grip, or use `cmd-alt-shift-arrows` (`pane.swap`). Both are built into Herdr.
 
+When Herdr starts a terminal, the header can receive the previous pane id for a
+frame together with the new terminal id. `pane-plus` resolves its pane from the
+terminal first and falls back to the pane id, so split, zoom and close never act
+on the pane the header just left.
+
 The header needs `"lone": true` in the pane frame. Without it, a tab's only pane
 — the one where the first split starts — has no frame to draw the header on.
 

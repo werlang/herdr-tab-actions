@@ -33,6 +33,8 @@ Os botões:
 - **Zoom** → `pane.zoom`; **Close** → `pane.close`.
 - O botão Move só aparece quando `panes()[i].movable` é true (não em pane único ou zoomado).
 
+Quando um `terminal.open` cria o pane, o header pode receber por um frame o `props().pane` anterior junto com o `props().terminal` novo. Os dois ids são válidos, então `me()` não pode confiar no pane primeiro: `resolveHeaderPane` em `pane.js` usa o terminal exato quando ele resolve (mesmo que o pane antigo esteja em outro espaço), preserva mod panes sem terminal e cai no pane id apenas quando o terminal não resolve. É esse pane resolvido que alimenta split, zoom, close e foco.
+
 Com `new-pane` instalado, o split vira `pane.split { direction, pane, mod: "new-pane", props: { space, direction, folder } }`. Sem ele, `pane.split { direction, pane }` abre um terminal.
 
 Comandos opcionais para teclado: `pane-plus.splitRight`, `pane-plus.splitDown` e `pane-plus.menu`. Cada cópia do header recebe o comando; só age a cópia cujo `props().pane` é o pane focado. Como comando de mod só resolve com o mod montado, mantenha `pane.split:right`/`:down` nos layouts sem `pane-plus`.

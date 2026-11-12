@@ -15,6 +15,28 @@ export function splitDirection(direction) {
 }
 
 /**
+ * The pane a header copy belongs to.
+ *
+ * `terminal.open` can hand a freshly created header the previous pane id while
+ * `props().terminal` is already the new terminal. Both ids are valid at that
+ * moment, so a bare pane lookup returns the wrong pane and the header's split,
+ * zoom, close and focus actions target it. The terminal is the exact identity
+ * and wins whenever it resolves, even across spaces.
+ *
+ * Without a terminal (a mod pane) or when the terminal no longer resolves, the
+ * pane id is the fallback so the header still renders.
+ *
+ * @param {{ pane?: string | null, terminal?: string | null, panes?: any[] }} input
+ * @returns {any | null}
+ */
+export function resolveHeaderPane({ pane, terminal, panes = [] } = {}) {
+  const list = Array.isArray(panes) ? panes : [];
+  const byPane = pane ? list.find((candidate) => candidate.pane === pane) ?? null : null;
+  if (!terminal) return byPane;
+  return list.find((candidate) => candidate.terminal === terminal) ?? byPane;
+}
+
+/**
  * The `pane.split` request for a header split button.
  *
  * With `new-pane` installed the new split is a chooser pane carrying the
