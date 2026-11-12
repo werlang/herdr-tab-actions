@@ -1,6 +1,6 @@
 import test, { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { splitDirection, splitRequest, menuRows, actions, isModPane, MOD_HOVER_DELAY_MS } from "../mods/pane-plus/pane.js";
+import { splitDirection, splitRequest, menuRows, actions, isModPane, MOD_HOVER_DELAY_MS, resolveHeaderPane } from "../mods/pane-plus/pane.js";
 import { ownPane, openArgs, chooserAgents } from "../mods/new-pane/chooser.js";
 
 describe("splitDirection", () => {
@@ -39,6 +39,80 @@ describe("splitRequest", () => {
       mod: "new-pane",
       props: { direction: "right" },
     });
+  });
+});
+
+describe("resolveHeaderPane", () => {
+  const oldPane = { pane: "pOld", terminal: "tOld", tab: "tab-old", title: "old shell" };
+  const logsPane = { pane: "pLogs", terminal: "tLogs", tab: "tab-logs", title: "logs: api" };
+
+  it("follows the live terminal when the header's pane id is stale", () => {
+    // The reproduction: both ids are valid and disagree. byPane would return
+    // pOld and every header action (split/zoom/close/focus) would target it.
+    const found = resolveHeaderPane({
+      pane: "pOld",
+      terminal: "tLogs",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, logsPane);
+  });
+
+  it("follows the terminal even when the stale pane is in another space", () => {
+    // The stale pane's space cannot constrain a terminal that resolves: the
+    // terminal is the exact identity, and returning pOld could close it.
+    const found = resolveHeaderPane({
+      pane: "pOld",
+      terminal: "tLogs",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, logsPane);
+  });
+
+  it("keeps the pane id when the terminal no longer resolves", () => {
+    const found = resolveHeaderPane({
+      pane: "pOld",
+      terminal: "tGone",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, oldPane);
+  });
+
+  it("keeps a mod pane that has no terminal", () => {
+    const modPane = { pane: "pMod", terminal: null, tab: "tab-mod", title: "docker-manager" };
+    const otherMod = { pane: "pOther", terminal: null, tab: "tab-other", title: "git-graph" };
+    const found = resolveHeaderPane({
+      pane: "pMod",
+      terminal: null,
+      panes: [otherMod, modPane],
+    });
+    assert.equal(found, modPane);
+  });
+
+  it("resolves the terminal when the pane id is gone", () => {
+    const found = resolveHeaderPane({
+      pane: "pGone",
+      terminal: "tLogs",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, logsPane);
+  });
+
+  it("keeps the pane when its terminal already agrees", () => {
+    const found = resolveHeaderPane({
+      pane: "pOld",
+      terminal: "tOld",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, oldPane);
+  });
+
+  it("returns null when neither id resolves", () => {
+    const found = resolveHeaderPane({
+      pane: "pGone",
+      terminal: "tGone",
+      panes: [oldPane, logsPane],
+    });
+    assert.equal(found, null);
   });
 });
 

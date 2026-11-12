@@ -1,6 +1,6 @@
 {
   "name": "pane-plus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "Pane Plus",
   "description": "Pane header with split right/down, move/reorder, zoom, and close; splits open the New pane chooser",
   "place": "none",

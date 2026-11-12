@@ -25,7 +25,7 @@ import {
   closeOverlay,
   nextCommand,
 } from "herdr";
-import { splitRequest, menuRows, actions, isModPane } from "./pane.js";
+import { splitRequest, menuRows, actions, isModPane, resolveHeaderPane } from "./pane.js";
 
 /** How often an installed `new-pane` is looked for again. */
 const PROBE_MS = 15000;
@@ -112,13 +112,11 @@ export default class PanePlus extends View {
 
   /** The pane this header copy belongs to. */
   me() {
-    const byPane = panes().find((p) => p.pane === props()?.pane);
-    if (byPane) return byPane;
-    // A pane freshly created by terminal.open can briefly expose a stale pane
-    // id while the terminal id is already current. Resolve through it so the
-    // new pane's header controls keep working.
-    const terminal = props()?.terminal;
-    return terminal ? panes().find((p) => p.terminal === terminal) ?? null : null;
+    return resolveHeaderPane({
+      pane: props()?.pane,
+      terminal: props()?.terminal,
+      panes: panes(),
+    });
   }
 
   /** The space that owns a pane, for the chooser's space/folder props. */
