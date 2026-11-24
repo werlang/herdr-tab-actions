@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
+import { spaces, panes, terminals, agents, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
 import { findPreviewEntry, promoteOpenTab } from "./preview.js";
 import { harnessOf, modesOf, savedMode, scopeOf, viewOf, withMode } from "./view-mode.js";
 
@@ -704,10 +704,18 @@ export default class Tabs extends View {
             // (or Original) never flashes the other one first.
             const applied = this.applySavedMode(c, allPanes);
             run("tab.select", { id: c.id });
-            if (!applied) {
+            const shown = panes();
+            const zoomedChat = shown.find((p) => p.tab === c.id && p.mod === "agent-chat" && p.zoomed);
+            const termPane = shown.find((p) => p.tab === c.id && p.terminal);
+            if (zoomedChat && termPane && agents().some((a) => a.pane === termPane.pane && a.status === "done")) {
+              // Briefly focus the hidden terminal so Herdr marks the done agent as viewed,
+              // then re-zoom and focus the chat pane.
+              run("pane.focus", { pane: termPane.pane });
+              run("pane.zoom", { pane: zoomedChat.pane });
+              run("pane.focus", { pane: zoomedChat.pane });
+            } else if (!applied) {
               // Focus what the tab actually shows: in a zoomed tab the first
               // pane may be the terminal hidden behind the chat (or vice versa).
-              const shown = panes();
               const pane =
                 shown.find((p) => p.tab === c.id && p.zoomed) ??
                 shown.find((p) => p.tab === c.id);
