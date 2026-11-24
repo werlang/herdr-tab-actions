@@ -1,5 +1,5 @@
 {
-  "name": "toast",
+  "name": "toast-plus",
   "version": "0.1.0",
   "title": "Toast Notifications",
   "description": "Toast notifications that expand into full-message modal dialogs on click",

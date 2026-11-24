@@ -45,7 +45,7 @@ export function levelLabel(level) {
  */
 export function buildModalOverlay(p = {}) {
   return {
-    mod: "toast",
+    mod: "toast-plus",
     kind: "dialog",
     width: 520,
     props: {

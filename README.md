@@ -9,7 +9,7 @@ they cover the same workspace interaction surface:
 - **Copy reference** — right-click a tab or terminal pane to copy its `hc` address and context for another agent.
 - **Pane header** — a compact header on each pane with split right/down, move/reorder, zoom and close.
 - **New pane chooser** — a split opens the same Terminal/agent screen as the New tab placeholder; picking an option starts it in the split.
-- **Toast modal dialogs** — clicking any notification toast expands it into a centered modal dialog with the full message, clipboard copy, and optional action run.
+- **Toast modal dialogs** — clicking any notification toast expands it into a centered modal dialog with the full message, clipboard copy, and optional action run. `toast-plus` is a clone of the shipped `toast`: point the layout root at it with `"toast": "toast-plus"`. Herdr restores its own `toast` on every start, so overwriting `mods/toast` does not stick.
 
 ![Herdr Tab & Pane Actions](preview.png)
 
@@ -21,7 +21,7 @@ they cover the same workspace interaction surface:
 | `ref-menu` | Tab and pane right-click menu: Copy reference, Pin tab, split, zoom, close | root `terminal_menu` |
 | `pane-plus` | Pane header: split right/down, move/reorder, zoom, close | `pane.header` |
 | `new-pane` | Terminal/agent chooser for a new split | created by `pane-plus` or `ref-menu`; no layout slot |
-| `toast` | Toast notification: click expands into full-message modal dialog with copy | `toast` (replaceable) |
+| `toast-plus` | Toast notification: click expands into full-message modal dialog with copy | root `"toast": "toast-plus"` |
 
 Each mod works alone. The repo is only the shipping unit: install all five for
 the full feature, or only the ones you want.
@@ -104,6 +104,23 @@ hc wait t9
 
 On remote machines, the address automatically includes the machine target (`machine/t9`).
 
+## Toast notifications
+
+`toast-plus` replaces Herdr's shipped `toast` for every notification: clicking a
+toast opens a centered dialog with the full message, copy-to-clipboard, an
+optional action button and Esc/Close.
+
+Herdr owns the `toast` name and restores its shipped version on every start; an
+edited `mods/toast` is moved to `toast-edited*` and stops being used. That is why
+this clone is named `toast-plus`: select it from the layout root instead of
+overwriting the shipped mod.
+
+```json
+{
+  "toast": "toast-plus"
+}
+```
+
 ## Requirements
 
 - Herdr app.
@@ -123,6 +140,7 @@ On remote machines, the address automatically includes the machine target (`mach
    ```json
    {
      "terminal_menu": "ref-menu",
+     "toast": "toast-plus",
      "children": [
        {
          "id": "tabs",
@@ -194,6 +212,7 @@ On remote machines, the address automatically includes the machine target (`mach
    herdr-app check ~/.config/herdr-app/mods/ref-menu
    herdr-app check ~/.config/herdr-app/mods/pane-plus
    herdr-app check ~/.config/herdr-app/mods/new-pane
+   herdr-app check ~/.config/herdr-app/mods/toast-plus
    ```
 
 ## What's not here

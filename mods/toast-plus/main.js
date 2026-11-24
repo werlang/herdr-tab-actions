@@ -83,7 +83,7 @@ export default class Toast extends View {
             cx.stop_propagation();
             if (p.overlay) closeOverlay(p.overlay);
           })
-          .child(svg("mods/toast/close.svg").size(12)),
+          .child(svg("mods/toast-plus/close.svg").size(12)),
       );
   }
 
@@ -161,7 +161,7 @@ export default class Toast extends View {
                 cx.stop_propagation();
                 if (p.overlay) closeOverlay(p.overlay);
               })
-              .child(svg("mods/toast/close.svg").size(12)),
+              .child(svg("mods/toast-plus/close.svg").size(12)),
           ),
       )
       .child(

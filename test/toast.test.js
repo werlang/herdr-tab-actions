@@ -6,7 +6,7 @@ import {
   levelLabel,
   buildModalOverlay,
   splitLines,
-} from "../mods/toast/toast-logic.js";
+} from "../mods/toast-plus/toast-logic.js";
 
 describe("DOT level colors", () => {
   it("maps semantic levels to theme token keys", () => {
@@ -61,7 +61,7 @@ describe("copyableText", () => {
 });
 
 describe("buildModalOverlay", () => {
-  it("creates a dialog overlay spec targeting mod toast", () => {
+  it("creates a dialog overlay spec targeting mod toast-plus", () => {
     const overlay = buildModalOverlay({
       title: "Agent finished",
       body: "Completed 3 tasks successfully.",
@@ -70,7 +70,7 @@ describe("buildModalOverlay", () => {
       action: { name: "terminal.focus", args: { terminal: "t1" } },
     });
 
-    assert.equal(overlay.mod, "toast");
+    assert.equal(overlay.mod, "toast-plus");
     assert.equal(overlay.kind, "dialog");
     assert.equal(overlay.width, 520);
     assert.deepEqual(overlay.props, {
@@ -86,7 +86,7 @@ describe("buildModalOverlay", () => {
   it("defaults omitted fields gracefully", () => {
     const overlay = buildModalOverlay();
 
-    assert.equal(overlay.mod, "toast");
+    assert.equal(overlay.mod, "toast-plus");
     assert.equal(overlay.kind, "dialog");
     assert.equal(overlay.width, 520);
     assert.deepEqual(overlay.props, {

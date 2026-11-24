@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 live="${HERDR_APP_HOME:-$HOME/.config/herdr-app}/mods"
 
-for mod in tabs-ref ref-menu pane-plus new-pane toast; do
+for mod in tabs-ref ref-menu pane-plus new-pane toast-plus; do
   src="$root/mods/$mod"
   if [ ! -d "$src" ]; then
     echo "missing $src" >&2
@@ -20,4 +20,4 @@ for mod in tabs-ref ref-menu pane-plus new-pane toast; do
   herdr-app check "$live/$mod"
 done
 
-echo "Synced: tabs-ref ref-menu pane-plus new-pane toast -> $live"
+echo "Synced: tabs-ref ref-menu pane-plus new-pane toast-plus -> $live"

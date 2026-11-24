@@ -51,10 +51,10 @@ chooser's place.
 - `mods/ref-menu/` — clone of the shipped `menu`; adds the `ref.copy` item (clipboard writer per platform) and the Pin/Unpin tab item. With `new-pane` installed, its split items open the chooser. `ref.js` builds the reference line without importing `herdr`, keeping it testable in plain Node.
 - `mods/pane-plus/` — clone of the shipped `pane` header; adds split, move/reorder, zoom and close, and opens `new-pane` when it is installed. `pane.js` holds the split/menu rules and is testable in plain Node.
 - `mods/new-pane/` — the **New pane** chooser (Terminal + installed agents); `chooser.js` holds the pane matching and launch arguments and is testable in plain Node.
-- `mods/toast/` — replacement of Herdr's shipped `toast`; clicking a toast opens a modal dialog displaying the full message with line breaks, copy-to-clipboard button, and optional action trigger. `toast-logic.js` holds the data formatting and overlay spec logic and is testable in plain Node.
+- `mods/toast-plus/` — clone of Herdr's shipped `toast`; clicking a toast opens a modal dialog displaying the full message with line breaks, copy-to-clipboard button, and optional action trigger. `toast-logic.js` holds the data formatting and overlay spec logic and is testable in plain Node. The clone keeps a distinct name because Herdr restores its own `toast` on every start; select it with the layout root's `"toast": "toast-plus"`.
 - `shared("tabs.pinned")` — app-wide pinned tab ids.
 - `shared("new-menu.agents")` — the last agents each machine reported, shared with `space-pin` / `new-menu-plus`.
-- Layout wiring points `tabs` at `tabs-ref`, root `terminal_menu` at `ref-menu`, and the pane frame header at `pane-plus` (with `"lone": true`).
+- Layout wiring points `tabs` at `tabs-ref`, root `terminal_menu` at `ref-menu`, root `toast` at `toast-plus`, and the pane frame header at `pane-plus` (with `"lone": true`).
 
 ## Watch out
 
@@ -71,11 +71,11 @@ chooser's place.
 - `cmd+w` must point at `tabs-ref.closeTab` (not `tab.close`) for pinned tabs to protect themselves.
 - `pane-plus` needs `"lone": true` in the pane frame, otherwise a tab's only pane (the first split target) has no header.
 - Linux **Copy reference** needs `wl-copy` or `xclip`.
-- Do not rename `tabs-ref`, `ref-menu`, `pane-plus` or `new-pane`: asset paths, `openOverlay` calls and the `new-pane` split request use those folder names.
+- Do not rename `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane` or `toast-plus`: asset paths, `openOverlay` calls and the `new-pane` split request use those folder names. `toast-plus` must keep its distinct name: Herdr owns `toast` and restores its shipped version on every start.
 
 ## Done when
 
-- `herdr-app check` passes for `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane` and `toast`.
+- `herdr-app check` passes for `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane` and `toast-plus`.
 - Right-clicking a tab shows Pin/Unpin and Copy reference.
 - Pinned tabs show a pin icon and move to the front.
 - `cmd+w` on a pinned tab selects the closest tab instead of closing.
