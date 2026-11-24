@@ -2,6 +2,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
 import { findPreviewEntry, promoteOpenTab } from "./preview.js";
+import { hasPlaceholder } from "./placeholders.js";
 import { harnessOf, modesOf, savedMode, scopeOf, viewOf, withMode } from "./view-mode.js";
 
 function find(node, id) {
@@ -370,14 +371,18 @@ export default class Tabs extends View {
 
   /**
    * Creates the space-pin placeholder tab in a space. A no-op returning false
-   * when space-pin is not installed: Herdr would open a tab that cannot render.
-   * @param {{id?: string, folder?: string} | undefined} space
+   * when space-pin is not installed or when the space already has a
+   * placeholder: Herdr would open a tab that cannot render, and a second
+   * placeholder would leave a hidden duplicate behind.
+   * @param {{id?: string, folder?: string, tabs?: Array<{id: string}>} | undefined} space
+   * @param {{focus?: boolean, allPanes?: Array<{tab: string, mod?: string}>}} [options]
    * @returns {boolean} whether a placeholder was requested
    */
-  newPlaceholder(space) {
+  newPlaceholder(space, { focus = true, allPanes = panes() } = {}) {
     if (!this.hasPlaceholder || !space) return false;
+    if (hasPlaceholder(space.tabs, allPanes)) return false;
     const loc = (shared("spaces.pinned_locations") ?? {})[space.id] || space.folder;
-    run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", props: { space: space.id, folder: loc } });
+    run("tab.new", { space: space.id, mod: "space-pin", name: "New tab", focus, props: { space: space.id, folder: loc } });
     return true;
   }
 
@@ -484,6 +489,9 @@ export default class Tabs extends View {
       run("tab.select", { id: holder.id });
       const pane = allPanes.find((p) => p.tab === holder.id);
       if (pane) run("pane.focus", { pane: pane.pane });
+    } else if (this.pendingPin) {
+      // A placeholder is already on its way (reorder); the focus stamp below
+      // reaches it when it lands.
     } else if (!this.newPlaceholder(space)) {
       // Without space-pin there is no New tab screen: open a terminal tab, like Herdr's cmd+t.
       run("tab.new", { space: space.id });
@@ -600,7 +608,13 @@ export default class Tabs extends View {
 
     // Closing the last regular tab leaves the placeholder behind (when space-pin
     // is installed); without it the space closes with its last tab, as in Herdr.
-    if (regular.length <= 1) this.newPlaceholder(space);
+    // One placeholder is enough: reuse the one already there instead of parking a
+    // hidden duplicate for every last-tab close. It is created unfocused so a
+    // close that cannot land (no two tabs when tab.close runs) leaves the person
+    // on the tab they were on, not on the New tab screen.
+    if (regular.length <= 1 && !hasPlaceholder(tabs, allPanes)) {
+      this.newPlaceholder(space, { focus: false, allPanes });
+    }
     run("tab.close", { id: tabId });
   }
 

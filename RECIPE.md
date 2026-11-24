@@ -42,7 +42,7 @@ chooser's place.
 - **Move** calls `pane.swap` with the chosen direction. Dragging the app's top-center grip and `cmd-alt-shift-arrows` do the same without the menu.
 - Supports macOS, Linux (`wl-copy`/`xclip`), and Windows.
 - On a TUI application that captures the mouse, **Shift+right-click** opens the pane menu.
-- While a space has other tabs, `tabs-ref` hides placeholder tabs (such as `space-pin`); it reveals them when selected or when all other tabs close.
+- While a space has other tabs, `tabs-ref` hides placeholder tabs (such as `space-pin`); it reveals them when selected or when all other tabs close. Closing the last regular tab reuses the placeholder already in the space, so no hidden duplicates pile up.
 - The `+` sits after the last visible tab and opens `new-menu-plus` in one click; without that mod it opens a terminal tab directly.
 
 ## Built from
