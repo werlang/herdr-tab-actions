@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, notify, window, shared, setShared, layout, appHome, readTextFile } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, machines, exec, notify, window, shared, setShared, layout, appHome, readTextFile } from "herdr";
 import { addressOf, appOf, locateTab, terminalsOfTab, reference } from "./ref.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
@@ -277,10 +277,31 @@ export default class Menu extends View {
       const space = spaces().find((s) => s.id === spaceId);
       const tabs = space?.tabs ?? [];
       const regular = tabs.filter((t) => !placeholder(t.id));
+      const ready = !space?.machine || machines().find((m) => m.name === space.machine)?.layout === "ready";
 
       if (placeholder(id)) {
         if (regular.length) {
+          if (!ready) {
+            const pending = shared("tabs.pending_close") ?? [];
+            if (!pending.includes(id)) setShared("tabs.pending_close", [...pending, id]);
+            run("tab.settle", { id });
+            return;
+          }
           run("tab.close", { id });
+        }
+        return;
+      }
+
+      if (!ready) {
+        const pending = shared("tabs.pending_close") ?? [];
+        const nextPending = pending.includes(id) ? pending : [...pending, id];
+        setShared("tabs.pending_close", nextPending);
+        run("tab.settle", { id });
+        const closing = tabs.find((t) => t.id === id);
+        if (closing?.active) {
+          const next = tabs.find((t) => t.id !== id && !nextPending.includes(t.id) && !placeholder(t.id))
+            ?? tabs.find((t) => t.id !== id && !nextPending.includes(t.id));
+          if (next) run("tab.select", { id: next.id });
         }
         return;
       }

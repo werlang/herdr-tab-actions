@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, agents, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
+import { spaces, panes, terminals, agents, machines, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
 import { findPreviewEntry, promoteOpenTab } from "./preview.js";
 import { hasPlaceholder } from "./placeholders.js";
 import { harnessOf, modesOf, savedMode, scopeOf, viewOf, withMode } from "./view-mode.js";
@@ -114,11 +114,12 @@ export default class Tabs extends View {
     // Tabs are created, closed and dragged outside this mod's own clicks;
     // enforce "pinned first" cheaply (a no-op when the order is already right).
     // Treat pressed state as stale if a drag ended outside the window (> 5 s).
-    cx.timer.every(1000, () => {
+    cx.timer.every(1000, (cx) => {
       if (this.pressed === null || Date.now() - this.pressedAt > 5000) {
         this.pressed = null;
         this.reorder();
       }
+      if (this.flushPendingCloses()) cx.notify();
     });
     // A tab shown later (a click, a key command, an agent selection) still
     // follows the remembered Original / Chat choice. A short beat keeps the
@@ -509,8 +510,70 @@ export default class Tabs extends View {
    * @param {Array} allPanes panes() snapshot
    * @returns {Array} visible tabs, in display order
    */
-  visibleTabs(space, allPanes = panes()) {
+  /** Whether a space's machine can accept structural commands like tab.close. */
+  isMachineReady(machine) {
+    if (!machine) return true;
+    const m = machines().find((x) => x.name === machine);
+    return m?.layout === "ready";
+  }
+
+  /** Tabs queued to close as soon as their remote machine reconnects. */
+  pendingCloseSet() {
+    return new Set(shared("tabs.pending_close") ?? []);
+  }
+
+  /**
+   * Hide an unreachable remote tab locally and queue its real tab.close for
+   * when its machine becomes ready again.
+   */
+  queueOfflineClose(tabId, space, allPanes = panes()) {
+    const pending = this.pendingCloseSet();
+    if (!pending.has(tabId)) {
+      pending.add(tabId);
+      setShared("tabs.pending_close", [...pending]);
+    }
+    run("tab.settle", { id: tabId });
     const tabs = space?.tabs ?? [];
+    const closing = tabs.find((t) => t.id === tabId);
+    if (closing?.active) {
+      const next = this.visibleTabs(space, allPanes).find((t) => t.id !== tabId);
+      if (next) run("tab.select", { id: next.id });
+    }
+  }
+
+  /**
+   * Drain queued offline closes whose machines are now ready, and prune tabs
+   * that are already gone. Returns true if the queue changed.
+   */
+  flushPendingCloses() {
+    const pending = shared("tabs.pending_close") ?? [];
+    if (!pending.length) return false;
+    const allSpaces = spaces();
+    const allPanes = panes();
+    const byTab = new Map();
+    for (const s of allSpaces) {
+      for (const t of s.tabs ?? []) byTab.set(t.id, s);
+    }
+    const remaining = [];
+    for (const id of pending) {
+      const space = byTab.get(id);
+      if (!space) continue;
+      if (this.isMachineReady(space.machine)) {
+        this.closeTab(id, space, allPanes);
+      } else {
+        remaining.push(id);
+      }
+    }
+    if (remaining.length !== pending.length) {
+      setShared("tabs.pending_close", remaining);
+      return true;
+    }
+    return false;
+  }
+
+  visibleTabs(space, allPanes = panes()) {
+    const pending = this.pendingCloseSet();
+    const tabs = (space?.tabs ?? []).filter((tab) => !pending.has(tab.id));
     const pinned = this.pinnedSet();
     const isHolder = (tab) => this.isPlaceholder(tab.id, allPanes);
     const shown = tabs.filter((tab) => tabs.length <= 1 || tab.active || !isHolder(tab));
@@ -550,6 +613,7 @@ export default class Tabs extends View {
     // sorting, so the next preview open cannot replace it.
     this.promotePinnedPreviews();
     const space = spaces().find((s) => s.active);
+    if (!this.isMachineReady(space?.machine)) return;
     const tabs = space?.tabs ?? [];
     if (!tabs.length) return;
     const allPanes = panes(), pinned = this.pinnedSet();
@@ -601,8 +665,17 @@ export default class Tabs extends View {
 
     if (isHolder) {
       if (regular.length) {
+        if (!this.isMachineReady(space?.machine)) {
+          this.queueOfflineClose(tabId, space, allPanes);
+          return;
+        }
         run("tab.close", { id: tabId });
       }
+      return;
+    }
+
+    if (!this.isMachineReady(space?.machine)) {
+      this.queueOfflineClose(tabId, space, allPanes);
       return;
     }
 
