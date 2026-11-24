@@ -1,7 +1,8 @@
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex } from "gpui-base";
-import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile } from "herdr";
+import { v_flex, h_flex } from "gpui-base";
+import { spaces, panes, terminals, run, openOverlay, closeOverlay, theme, window, shared, setShared, layout, settings, focused, nextCommand, appHome, readTextFile, props } from "herdr";
 import { findPreviewEntry, promoteOpenTab } from "./preview.js";
+import { harnessOf, modesOf, savedMode, scopeOf, viewOf, withMode } from "./view-mode.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -82,8 +83,13 @@ export default class Tabs extends View {
     this.pressedAt = 0;
     this.panels = loadPanels();
     this.pendingZoomChat = null;
+    this._viewApplied = null;
     /** @type {Record<string, boolean>} which OPTIONAL_MODS are installed */
     this.mods = {};
+
+    // The scope menu is this same mod opened as a popup (props.viewScopeMenu).
+    // It only draws the two rows; no timers or commands belong to it.
+    if (props()?.viewScopeMenu) return;
 
     // Look for the optional mods now and again later (see OPTIONAL_MODS).
     this.probeMods(cx);
@@ -99,6 +105,7 @@ export default class Tabs extends View {
         else if (command === "pin") this.togglePin();
         else if (command === "reorder") this.reorder();
         else if (command === "newTab" || command === "newTerminal") this.openNewTab();
+        else if (command === "viewScope") this.openViewScopeMenu();
         else if (/^select[1-9]$/.test(command)) this.selectNth(Number(command.slice(6)));
         cx.notify();
       }
@@ -112,6 +119,10 @@ export default class Tabs extends View {
         this.reorder();
       }
     });
+    // A tab shown later (a click, a key command, an agent selection) still
+    // follows the remembered Original / Chat choice. A short beat keeps the
+    // terminal from lingering on screen when the chat is the remembered view.
+    cx.timer.every(100, () => this.syncViewMode());
     cx.timer.after(100, () => this.reorder());
   }
 
@@ -134,6 +145,216 @@ export default class Tabs extends View {
   get hasPlaceholder() { return Boolean(this.mods["space-pin"]); }
   get hasNewMenu() { return Boolean(this.mods["new-menu-plus"]); }
   get hasChat() { return Boolean(this.mods["agent-chat"]); }
+
+  /** The shown tab and the agent program that scopes its view mode. */
+  activeView() {
+    const tab = spaces().find((s) => s.active)?.tabs?.find((x) => x.active) ?? null;
+    return { tab, harness: tab ? harnessOf(tab.id, panes()) : null };
+  }
+
+  /** Where Original / Chat is remembered: one slot for every agent, or one per harness. */
+  viewScope() {
+    return scopeOf(shared("tabs.viewScope"));
+  }
+
+  /** The remembered Original / Chat modes, as stored. */
+  viewModes() {
+    return modesOf(shared("tabs.viewModes"));
+  }
+
+  /**
+   * Remembers the mode just chosen under the current scope, so the next tabs
+   * of that scope open the same way.
+   * @param {"chat" | "original"} mode
+   */
+  saveViewMode(mode) {
+    const { harness } = this.activeView();
+    const scope = this.viewScope();
+    if (scope === "harness" && !harness) return;
+    const modes = this.viewModes();
+    if (savedMode(scope, modes, harness) === mode) return;
+    setShared("tabs.viewModes", withMode(scope, modes, harness, mode));
+  }
+
+  /**
+   * Applies the remembered mode to `tab` without waiting for it to be shown,
+   * so a tab click lands on the right view instead of flashing the terminal.
+   * @param {{id: string}} tab
+   * @param {Array<object>} [allPanes]
+   * @returns {boolean} whether a view command was issued (and focused its pane)
+   */
+  applySavedMode(tab, allPanes = panes()) {
+    const harness = harnessOf(tab.id, allPanes);
+    if (!harness) return false;
+    const mode = savedMode(this.viewScope(), this.viewModes(), harness);
+    if (!mode || viewOf(tab.id, allPanes) === mode) return false;
+    if (mode === "chat") this.showChat(tab);
+    else this.showOriginal(tab, false);
+    return true;
+  }
+
+  /** Shows `tab` in the chat view, creating its pane once. */
+  showChat(tab) {
+    const allPanes = panes();
+    const chatPane = allPanes.find((p) => p.tab === tab.id && p.mod === "agent-chat");
+    const terminalPane = allPanes.find((p) => p.tab === tab.id && p.terminal);
+    if (!chatPane) {
+      // A split is already on its way; the pending zoom lands it. Splitting
+      // again here would leave two chat panes in the tab.
+      if (this.pendingZoomChat?.tab === tab.id && Date.now() < this.pendingZoomChat.until) return;
+      this.pendingZoomChat = { tab: tab.id, until: Date.now() + 3000 };
+      const activeTerminal = terminalPane?.terminal || focused()?.terminal || null;
+      const args = { direction: "right", mod: "agent-chat" };
+      if (terminalPane) args.pane = terminalPane.pane;
+      if (activeTerminal) args.props = { terminal: activeTerminal };
+      run("pane.split", args);
+    } else {
+      if (!chatPane.zoomed) run("pane.zoom", { pane: chatPane.pane });
+      run("pane.focus", { pane: chatPane.pane });
+    }
+  }
+
+  /**
+   * Shows `tab` in the original terminal view. Only the pointer path creates
+   * a terminal; restoring a remembered mode never starts one.
+   * @param {{id: string}} tab
+   * @param {boolean} [create]
+   */
+  showOriginal(tab, create = true) {
+    const terminalPane = panes().find((p) => p.tab === tab.id && p.terminal);
+    if (terminalPane) {
+      if (!terminalPane.zoomed) run("pane.zoom", { pane: terminalPane.pane });
+      run("pane.focus", { pane: terminalPane.pane });
+    } else if (create) {
+      run("terminal.open", { place: "right" });
+    }
+  }
+
+  /**
+   * Applies the remembered mode when the shown tab changes. One key per
+   * tab/harness/mode keeps the timer from fighting a manual zoom.
+   */
+  syncViewMode() {
+    const space = spaces().find((s) => s.active);
+    const { tab, harness } = this.activeView();
+    if (!tab) return;
+    // Coming back to a tab (or space) is a fresh visit: the view may have been
+    // zoomed back to the terminal while it was away, so the remembered mode
+    // must be applied again. Staying on the tab keeps the one-shot guard, so
+    // a manual zoom never fights the timer.
+    const visit = `${space?.id ?? ""}\u0000${tab.id}`;
+    if (this._viewVisit !== visit) {
+      this._viewVisit = visit;
+      this._viewApplied = null;
+    }
+    if (!harness) return;
+    const mode = savedMode(this.viewScope(), this.viewModes(), harness);
+    if (!mode) return;
+    const applied = `${tab.id}\u0000${harness.key}\u0000${mode}`;
+    if (this._viewApplied === applied) return;
+    this._viewApplied = applied;
+    if (viewOf(tab.id, panes()) === mode) return;
+    if (mode === "chat") this.showChat(tab);
+    else this.showOriginal(tab, false);
+  }
+
+  /**
+   * Opens the tiny Original / Chat scope menu beside the toggle.
+   * `position` is the click, in window pixels: the menu hangs under it and
+   * lines its right edge up with the chevron. Without one (a key command),
+   * it opens at the pointer.
+   * @param {{x: number, y: number} | null} [position]
+   */
+  openViewScopeMenu(position = null) {
+    if (this._scopeMenu) closeOverlay(this._scopeMenu);
+    const at = position
+      ? { x: Math.max(8, Math.round(position.x) - 250), y: Math.round(position.y) + 16 }
+      : "pointer";
+    this._scopeMenu = openOverlay({
+      mod: "tabs-ref",
+      kind: "popup",
+      width: 250,
+      height: 106,
+      at,
+      props: { viewScopeMenu: true },
+    });
+  }
+
+  /**
+   * The popup body: choose whether the Original / Chat choice belongs to all
+   * agents (global) or only to the tab's harness.
+   * @param {any} t theme
+   */
+  renderViewScopeMenu(t) {
+    const { tab, harness } = this.activeView();
+    const scope = this.viewScope();
+    const select = (value, cx) => {
+      // The choice on screen becomes the choice remembered at this scope.
+      if (tab && harness) {
+        const mode = viewOf(tab.id, panes());
+        const modes = this.viewModes();
+        if (savedMode(value, modes, harness) !== mode) {
+          setShared("tabs.viewModes", withMode(value, modes, harness, mode));
+        }
+      }
+      setShared("tabs.viewScope", value);
+      closeOverlay(props().overlay);
+      cx.timer.after(100, () => this.syncViewMode());
+    };
+    const row = (id, label, note, active, enabled = true) => {
+      let el = h_flex()
+        .id(id)
+        .h(31)
+        .px(8)
+        .gap(9)
+        .rounded(7)
+        .items_center()
+        .text_color(enabled ? t.foreground : t.dim);
+      if (enabled) {
+        el = el
+          .cursor_pointer()
+          .hover((s) => s.bg(t.hover))
+          .on_click((_e, cx) => select(id === "scope-global" ? "global" : "harness", cx));
+      }
+      return el
+        .child(
+          h_flex()
+            .w(14)
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .when(active, (x) =>
+              x.child(svg("mods/workspace-chrome/check.svg").size(13).text_color(t.foreground))
+            )
+        )
+        .child(div().flex_1().child(label))
+        .child(div().text_size(10.5).text_color(t.dim).child(note));
+    };
+    return v_flex()
+      .w_full()
+      .p(5)
+      .bg(t.popover)
+      .text_size(12.8)
+      .child(
+        div()
+          .px(8)
+          .pt(4)
+          .pb(6)
+          .text_size(11)
+          .text_color(t.dim)
+          .child("Apply Original / Chat to")
+      )
+      .child(row("scope-global", "All agents", "Global", scope === "global"))
+      .child(
+        row(
+          "scope-harness",
+          harness ? `${harness.label} only` : "This agent only",
+          "Per harness",
+          scope === "harness",
+          Boolean(harness)
+        )
+      );
+  }
 
   /**
    * Opens the right-click menu for one tab: ref-menu when installed, else
@@ -302,9 +523,15 @@ export default class Tabs extends View {
     const allPanes = panes();
     const tab = this.visibleTabs(space, allPanes)[n - 1];
     if (!tab || tab.active) return;
+    const applied = this.applySavedMode(tab, allPanes);
     run("tab.select", { id: tab.id });
-    const pane = allPanes.find((p) => p.tab === tab.id);
-    if (pane) run("pane.focus", { pane: pane.pane });
+    if (!applied) {
+      const shown = panes();
+      const pane =
+        shown.find((p) => p.tab === tab.id && p.zoomed) ??
+        shown.find((p) => p.tab === tab.id);
+      if (pane) run("pane.focus", { pane: pane.pane });
+    }
   }
 
   // Pinned regular tabs first, then unpinned regular tabs, then the pinned-
@@ -431,6 +658,8 @@ export default class Tabs extends View {
    */
   render() {
     const t = theme();
+    // The scope menu is this mod opened as a small popup (see openViewScopeMenu).
+    if (props()?.viewScopeMenu) return this.renderViewScopeMenu(t);
     const space = spaces().find(p => p.active);
     const tabs = space?.tabs ?? [];
     const allPanes = panes();
@@ -471,9 +700,21 @@ export default class Tabs extends View {
             // crossed the block boundary.
             cx.timer.after(60, (cx) => { this.reorder(); cx.notify(); });
           } else {
+            // Switch the view before the tab is shown, so the remembered Chat
+            // (or Original) never flashes the other one first.
+            const applied = this.applySavedMode(c, allPanes);
             run("tab.select", { id: c.id });
-            const pane = allPanes.find((p) => p.tab === c.id);
-            if (pane) run("pane.focus", { pane: pane.pane });
+            if (!applied) {
+              // Focus what the tab actually shows: in a zoomed tab the first
+              // pane may be the terminal hidden behind the chat (or vice versa).
+              const shown = panes();
+              const pane =
+                shown.find((p) => p.tab === c.id && p.zoomed) ??
+                shown.find((p) => p.tab === c.id);
+              if (pane) run("pane.focus", { pane: pane.pane });
+            }
+            // The apply above can be a no-op while a new chat pane registers.
+            cx.timer.after(250, () => this.syncViewMode());
           }
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.openTabMenu(c, space); })
@@ -529,11 +770,17 @@ export default class Tabs extends View {
     };
 
     const chatToggle = () => {
-      const activeTabId = space?.tabs?.find((x) => x.active)?.id;
+      const activeTab = space?.tabs?.find((x) => x.active);
+      const activeTabId = activeTab?.id;
       const tabPanes = panes().filter((p) => p.tab === activeTabId);
       const chatPane = tabPanes.find((p) => p.mod === "agent-chat");
       const terminalPane = tabPanes.find((p) => p.terminal);
       const isChat = Boolean(chatPane && (chatPane.zoomed || !terminalPane));
+      const { harness } = this.activeView();
+      const scopeLabel =
+        this.viewScope() === "global" ? "All agents" : harness ? `${harness.label} only` : "Per agent";
+      // The click position anchors the scope menu under the chevron.
+      let scopePos = null;
 
       // Auto-zoom chatPane right after initial creation once Herdr registers it
       if (this.pendingZoomChat) {
@@ -549,88 +796,100 @@ export default class Tabs extends View {
         }
       }
 
-      const showChat = () => {
-        if (!chatPane) {
-          if (activeTabId) {
-            this.pendingZoomChat = { tab: activeTabId, until: Date.now() + 3000 };
-          }
-          const activeTerminal = terminalPane?.terminal || focused()?.terminal || null;
-          run("pane.split", {
-            direction: "right",
-            mod: "agent-chat",
-            props: activeTerminal ? { terminal: activeTerminal } : undefined,
-          });
-        } else if (!chatPane.zoomed) {
-          run("pane.zoom", { pane: chatPane.pane });
-        }
+      const pickChat = () => {
+        this.saveViewMode("chat");
+        if (activeTab) this.showChat(activeTab);
       };
-
-      const showOriginal = () => {
-        if (terminalPane) {
-          if (!terminalPane.zoomed) {
-            run("pane.zoom", { pane: terminalPane.pane });
-          }
-        } else {
-          run("terminal.open", { place: "right" });
-        }
+      const pickOriginal = () => {
+        this.saveViewMode("original");
+        if (activeTab) this.showOriginal(activeTab);
       };
 
       return h_flex()
-        .id("view-mode-toggle-bar")
-        .h(26)
-        .p(2)
-        .gap(2)
         .flex_none()
         .items_center()
-        .rounded(6)
-        .bg(t.raised || t.chrome)
-        .border_1()
-        .border_color(t.border)
-        .on_mouse_down("left", stop)
+        .gap(3)
         .child(
           h_flex()
-            .id("toggle-original-view")
-            .h(20)
-            .px(6)
-            .gap(4)
+            .id("view-mode-toggle-bar")
+            .h(26)
+            .p(2)
+            .gap(2)
+            .flex_none()
             .items_center()
-            .rounded(4)
-            .when(!isChat, (el) => el.bg(t.selected || t.raised).border_1().border_color(t.border))
-            .cursor_pointer()
-            .hover((s) => (!isChat ? s : s.bg(t.hover)))
-            .on_click(showOriginal)
-            .child(svg("mods/tabs-ref/terminal.svg").size(12).text_color(!isChat ? t.accent : t.muted))
+            .rounded(6)
+            .bg(t.raised || t.chrome)
+            .border_1()
+            .border_color(t.border)
+            .on_mouse_down("left", stop)
             .child(
-              div()
-                .text_size(11)
-                .font_medium()
-                .text_color(!isChat ? t.foreground : t.muted)
-                .child("Original")
+              h_flex()
+                .id("toggle-original-view")
+                .h(20)
+                .px(6)
+                .gap(4)
+                .items_center()
+                .rounded(4)
+                .when(!isChat, (el) => el.bg(t.selected || t.raised).border_1().border_color(t.border))
+                .cursor_pointer()
+                .hover((s) => (!isChat ? s : s.bg(t.hover)))
+                .on_click(pickOriginal)
+                .child(svg("mods/tabs-ref/terminal.svg").size(12).text_color(!isChat ? t.accent : t.muted))
+                .child(
+                  div()
+                    .text_size(11)
+                    .font_medium()
+                    .text_color(!isChat ? t.foreground : t.muted)
+                    .child("Original")
+                )
+            )
+            .child(
+              h_flex()
+                .id("toggle-chat-view")
+                .h(20)
+                .px(6)
+                .gap(4)
+                .items_center()
+                .rounded(4)
+                .when(isChat, (el) => el.bg(t.selected || t.raised).border_1().border_color(t.border))
+                .cursor_pointer()
+                .hover((s) => (isChat ? s : s.bg(t.hover)))
+                .on_click(() => {
+                  if (isChat) pickOriginal();
+                  else pickChat();
+                })
+                .child(svg("mods/tabs-ref/chat.svg").size(12).text_color(isChat ? t.accent : t.muted))
+                .child(
+                  div()
+                    .text_size(11)
+                    .font_medium()
+                    .text_color(isChat ? t.foreground : t.muted)
+                    .child("Chat")
+                )
             )
         )
         .child(
           h_flex()
-            .id("toggle-chat-view")
-            .h(20)
-            .px(6)
-            .gap(4)
+            .id("view-mode-scope")
+            .h(26)
+            .w(18)
+            .flex_none()
             .items_center()
-            .rounded(4)
-            .when(isChat, (el) => el.bg(t.selected || t.raised).border_1().border_color(t.border))
+            .justify_center()
+            .rounded(6)
+            .text_color(t.dim)
             .cursor_pointer()
-            .hover((s) => (isChat ? s : s.bg(t.hover)))
-            .on_click(() => {
-              if (isChat) showOriginal();
-              else showChat();
+            .hover((s) => s.bg(t.hover).text_color(t.foreground))
+            .on_mouse_down("left", (e, cx) => {
+              cx.stop_propagation();
+              scopePos = e.position ?? null;
             })
-            .child(svg("mods/tabs-ref/chat.svg").size(12).text_color(isChat ? t.accent : t.muted))
-            .child(
-              div()
-                .text_size(11)
-                .font_medium()
-                .text_color(isChat ? t.foreground : t.muted)
-                .child("Chat")
-            )
+            .on_click((_e, cx) => {
+              cx.stop_propagation();
+              this.openViewScopeMenu(scopePos);
+            })
+            .tooltip(`View mode applies to: ${scopeLabel}`)
+            .child(svg("mods/workspace-chrome/chevron-down.svg").size(11).text_color(t.muted))
         );
     };
 

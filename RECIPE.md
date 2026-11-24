@@ -66,7 +66,7 @@ chooser's place.
 - Optional mods from other repos are looked for in the live `mods/` folder every few seconds, so installing or turning one off applies live:
   - `space-pin` (`herdr-space-actions`): the hidden New tab placeholder. Without it, `cmd+t` opens a terminal tab and closing the last tab closes the space, as in Herdr.
   - `new-menu-plus` (`herdr-space-actions`): the `+` menu. Without it, `+` opens a terminal tab.
-  - `agent-chat` (`herdr-agent-chat`): the Original / Chat toggle. Without it, the toggle is hidden.
+  - `agent-chat` (`herdr-agent-chat`): the Original / Chat toggle, with a small chevron that scopes the remembered choice to all agents or to one harness. Without it, the toggle is hidden.
 - Every icon a mod draws comes from its own folder (`new-tab.svg`, `pin.svg`, `terminal.svg`, `chat.svg`, `split-right.svg`, `split-down.svg`, `move.svg`, `zoom.svg`, `close.svg`, `new-pane.svg`) or a shipped Herdr mod; it reads no other custom mod's files.
 - `cmd+w` must point at `tabs-ref.closeTab` (not `tab.close`) for pinned tabs to protect themselves.
 - `pane-plus` needs `"lone": true` in the pane frame, otherwise a tab's only pane (the first split target) has no header.

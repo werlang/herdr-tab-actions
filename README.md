@@ -10,6 +10,7 @@ they cover the same workspace interaction surface:
 - **Pane header** — a compact header on each pane with split right/down, move/reorder, zoom and close.
 - **New pane chooser** — a split opens the same Terminal/agent screen as the New tab placeholder; picking an option starts it in the split.
 - **Toast modal dialogs** — clicking any notification toast expands it into a centered modal dialog with the full message, clipboard copy, and optional action run. `toast-plus` is a clone of the shipped `toast`: point the layout root at it with `"toast": "toast-plus"`. Herdr restores its own `toast` on every start, so overwriting `mods/toast` does not stick.
+- **Original / Chat scope** — with `agent-chat` installed, the small chevron beside the Original / Chat toggle chooses whether that view choice is remembered for **all agents** (global) or only for the tab's **harness** (e.g. OpenCode, Claude Code). The scope and the chosen modes survive restarts.
 
 ![Herdr Tab & Pane Actions](preview.png)
 
