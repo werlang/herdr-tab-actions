@@ -30,47 +30,59 @@ export default class Toast extends View {
     return h_flex()
       .id("toast")
       .size_full()
-      .px(18)
-      .gap(12)
       .items_center()
       .bg(t.popover)
-      .cursor_pointer()
       .hover((s) => s.bg(t.hover))
-      .on_click(() => {
-        if (p.overlay) closeOverlay(p.overlay);
-        openOverlay(buildModalOverlay(p));
-      })
       .child(
-        p.icon
-          ? image(p.icon).w(18).h(18).flex_none()
-          : div().size(8).rounded(4).flex_none().bg(t[DOT[p.level] ?? "accent"]),
-      )
-      .child(
-        v_flex()
+        h_flex()
+          .id("toast-open")
           .flex_1()
+          .min_w(0)
+          .h_full()
+          .pl(18)
+          .pr(8)
+          .gap(12)
+          .items_center()
           .overflow_hidden()
+          .cursor_pointer()
+          .on_click(() => {
+            if (p.overlay) closeOverlay(p.overlay);
+            openOverlay(buildModalOverlay(p));
+          })
           .child(
-            div()
-              .truncate()
-              .font_semibold()
-              .text_size(13)
-              .text_color(t.foreground)
-              .child(p.title ?? ""),
+            p.icon
+              ? image(p.icon).w(18).h(18).flex_none()
+              : div().size(8).rounded(4).flex_none().bg(t[DOT[p.level] ?? "accent"]),
           )
-          .when(Boolean(p.body), (el) =>
-            el.child(
-              div()
-                .truncate()
-                .text_size(12)
-                .text_color(t.muted)
-                .child(p.body ?? ""),
-            ),
+          .child(
+            v_flex()
+              .flex_1()
+              .min_w(0)
+              .overflow_hidden()
+              .child(
+                div()
+                  .truncate()
+                  .font_semibold()
+                  .text_size(13)
+                  .text_color(t.foreground)
+                  .child(p.title ?? ""),
+              )
+              .when(Boolean(p.body), (el) =>
+                el.child(
+                  div()
+                    .truncate()
+                    .text_size(12)
+                    .text_color(t.muted)
+                    .child(p.body ?? ""),
+                ),
+              ),
           ),
       )
       .child(
         h_flex()
           .id("toast-dismiss")
-          .size(20)
+          .size(24)
+          .mr(12)
           .flex_none()
           .items_center()
           .justify_center()
