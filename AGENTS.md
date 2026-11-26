@@ -1,16 +1,16 @@
 # herdr-tab-actions
 
-Fonte da verdade dos mods de **tabs, panes e terminal references** do Herdr:
+Source of truth for the Herdr **tabs, panes, and terminal references** mods:
 
-- `mods/tabs-ref` — clone da barra de abas que abre o `ref-menu` no right-click, mostra o ícone de pin, mantém abas pinadas à frente do bloco regular de abas, esconde a aba placeholder New tab (`space-pin`) se houver abas normais (a menos que esteja selecionada), põe o botão `+` ao fim da barra (depois da última aba visível), mostra um botão **Docker** à esquerda de **Files** quando o layout monta um bloco `docker` no `panel-body` (com o mesmo toggle por space de Files/Changes) e atende `tabs-ref.closeTab`, `tabs-ref.newTab`, `tabs-ref.viewScope` e `tabs-ref.select1`..`select9`.
-- `mods/ref-menu` — clone do menu de contexto de pane e aba com **Pin tab / Unpin tab** e **Copy reference** (copia o endereço `hc` do terminal + contexto para a área de transferência via `ref.js`). Com `new-pane` instalado, os itens **Split right** / **Split down** abrem o chooser no pane novo; sem ele, continuam abrindo um terminal direto.
-- `mods/pane-plus` — clone do header shipped `pane`: mostra programa, pasta e status e, no hover, botões de **Split right**, **Split down**, **Move**, **Zoom** e **Close**. Os splits abrem o `new-pane` quando instalado; sem ele, abrem um terminal direto. O botão Move abre um popup próprio (props `{ menu: pane }`) com Split right/down, Move left/right/up/down, Zoom e Close.
-- `mods/new-pane` — o chooser **New pane** (mesmo visual do New tab do `space-pin`): Terminal (`T`/Enter) e agents instalados (`1`–`9`). Ao escolher, abre o terminal/agent no split e fecha o pane do chooser, então a escolha ocupa o lugar do split.
-- `mods/toast-plus` — clone com nome próprio do mod shipped `toast`: clicar em qualquer notificação abre um diálogo modal centralizado mostrando o título completo, mensagem inteira com quebras de linha preservadas e rolagem, botão para copiar mensagem para a área de transferência (`cx.write_to_clipboard`), botão para rodar a ação original (se houver) e botão Fechar/Esc. O nome não pode ser `toast`: o Herdr restaura o mod shipped a cada start (o custom vai para `toast-edited*`), então o layout escolhe o clone na raiz com `"toast": "toast-plus"`. A lógica de formatação fica em `toast-logic.js` e é testada em Node puro.
+- `mods/tabs-ref` — clone of the tab bar that opens `ref-menu` on right-click, shows the pin icon, keeps pinned tabs ahead of regular tabs, hides the New tab (`space-pin`) placeholder when normal tabs exist (unless selected), places the `+` button at the end of the bar (after the last visible tab), shows a **Docker** button to the left of **Files** when the layout mounts a `docker` block in `panel-body` (with the same per-space toggle as Files/Changes), and handles `tabs-ref.closeTab`, `tabs-ref.newTab`, `tabs-ref.viewScope`, and `tabs-ref.select1`..`select9`.
+- `mods/ref-menu` — clone of the pane and tab context menu with **Pin tab / Unpin tab** and **Copy reference** (copies the terminal's `hc` address + context to the clipboard via `ref.js`). With `new-pane` installed, **Split right** / **Split down** open the chooser in the new pane; without it, they open a terminal directly.
+- `mods/pane-plus` — clone of the shipped `pane` header: shows program, folder, and status and, on hover, **Split right**, **Split down**, **Move**, **Zoom**, and **Close** buttons. Splits open `new-pane` when installed; otherwise they open a terminal directly. The Move button opens its own popup (props `{ menu: pane }`) with Split right/down, Move left/right/up/down, Zoom, and Close.
+- `mods/new-pane` — the **New pane** chooser (same visual style as `space-pin`'s New tab): Terminal (`T`/Enter) and installed agents (`1`–`9`). On selection, opens the terminal/agent in the split and closes the chooser pane so the selection takes its place.
+- `mods/toast-plus` — uniquely named clone of the shipped `toast` mod: clicking any notification opens a centered modal dialog showing the full title, full message with preserved line breaks and scrolling, a button to copy the message to the clipboard (`cx.write_to_clipboard`), a button to run the original action (if any), and a Close/Esc button. The name cannot be `toast` because Herdr restores the shipped mod on every start (custom goes to `toast-edited*`), so the layout selects the clone at root with `"toast": "toast-plus"`. Formatting logic lives in `toast-logic.js` and is tested in pure Node.
 
-## Header de pane
+## Pane header
 
-O `pane-plus` é montado no header do pane frame:
+`pane-plus` is mounted in the pane frame header:
 
 ```json
 "pane": {
@@ -24,87 +24,87 @@ O `pane-plus` é montado no header do pane frame:
 }
 ```
 
-`lone: true` é obrigatório: sem ele, o pane único de uma tab (onde o primeiro split começa) não tem frame e o header não aparece. `reveal: "hover"` mostra o header só com o ponteiro no pane; `"always"` deixa fixo.
+`lone: true` is required: without it, a tab's single pane (where the first split starts) has no frame and the header does not appear. `reveal: "hover"` shows the header only when hovering the pane; `"always"` keeps it fixed.
 
-Os botões:
+Buttons:
 
-- **Split right** / **Split down** → `pane.split` com o `pane` daquela cópia.
-- **Move** → popup com `pane.swap` nas quatro direções.
+- **Split right** / **Split down** → `pane.split` with that instance's `pane`.
+- **Move** → popup with `pane.swap` in all four directions.
 - **Zoom** → `pane.zoom`; **Close** → `pane.close`.
-- O botão Move só aparece quando `panes()[i].movable` é true (não em pane único ou zoomado).
+- The Move button only appears when `panes()[i].movable` is true (not on a lone or zoomed pane).
 
-Quando um `terminal.open` cria o pane, o header pode receber por um frame o `props().pane` anterior junto com o `props().terminal` novo. Os dois ids são válidos, então `me()` não pode confiar no pane primeiro: `resolveHeaderPane` em `pane.js` usa o terminal exato quando ele resolve (mesmo que o pane antigo esteja em outro espaço), preserva mod panes sem terminal e cai no pane id apenas quando o terminal não resolve. É esse pane resolvido que alimenta split, zoom, close e foco.
+When `terminal.open` creates a pane, the header can receive for one frame the previous `props().pane` alongside the new `props().terminal`. Both ids are valid, so `me()` cannot trust the pane first: `resolveHeaderPane` in `pane.js` uses the exact terminal when it resolves (even if the old pane is in another space), preserves mod panes without a terminal, and falls back to the pane id only when the terminal does not resolve. That resolved pane drives split, zoom, close, and focus.
 
-Com `new-pane` instalado, o split vira `pane.split { direction, pane, mod: "new-pane", props: { space, direction, folder } }`. Sem ele, `pane.split { direction, pane }` abre um terminal.
+With `new-pane` installed, splitting becomes `pane.split { direction, pane, mod: "new-pane", props: { space, direction, folder } }`. Without it, `pane.split { direction, pane }` opens a terminal.
 
-Comandos opcionais para teclado: `pane-plus.splitRight`, `pane-plus.splitDown` e `pane-plus.menu`. Cada cópia do header recebe o comando; só age a cópia cujo `props().pane` é o pane focado. Como comando de mod só resolve com o mod montado, mantenha `pane.split:right`/`:down` nos layouts sem `pane-plus`.
+Optional keyboard commands: `pane-plus.splitRight`, `pane-plus.splitDown`, and `pane-plus.menu`. Every header instance receives the command; only the instance whose `props().pane` is the focused pane acts. Since a mod command only resolves when the mod is mounted, keep `pane.split:right`/`:down` in layouts without `pane-plus`.
 
 ## New pane
 
-`new-pane` é um mod pane criado por `pane.split`, não uma tab: ele não tem slot no layout. Props: `{ space, direction, folder }`.
+`new-pane` is a mod pane created by `pane.split`, not a tab: it has no slot in the layout. Props: `{ space, direction, folder }`.
 
-- Lista Terminal e agents instalados (ordem alfabética, `knownAgents`, cache `shared("new-menu.agents")`).
-- `T`/Enter abre terminal; `1`–`9` abre o agent correspondente.
-- Ao escolher: `pane.focus` no próprio chooser, `terminal.open { place: direction, folder, argv?, name? }` e `pane.close` no pane do chooser. O terminal/agent fica no lugar do split.
-- `focusable: true`: `pane.go` pode entrar na cópia e manda `focus` via `nextCommand()`. Uma janela curta de 500 ms tenta pegar o teclado quando o split acabou de ser criado; cópias escondidas e dois choosers na mesma tab não brigam pelo foco (ver `ownPane` em `chooser.js`).
-- O chooser é a cópia do visual do `space-pin`; o título é **New pane**. O `folder` vem do pane dividido (`p.pane.cwd` via `pane-plus`, ou `place(space)` no `ref-menu`), com fallback para o local do space (inclusive o local fixado do pin).
+- Lists Terminal and installed agents (alphabetical order, `knownAgents`, cached in `shared("new-menu.agents")`).
+- `T`/Enter opens a terminal; `1`–`9` opens the corresponding agent.
+- On selection: `pane.focus` on the chooser itself, `terminal.open { place: direction, folder, argv?, name? }`, and `pane.close` on the chooser pane. The terminal/agent takes the split's place.
+- `focusable: true`: `pane.go` can enter the instance and sends `focus` via `nextCommand()`. A short 500 ms window tries to grab keyboard focus when the split was just created; hidden instances and two choosers in the same tab do not fight for focus (see `ownPane` in `chooser.js`).
+- The chooser shares the visual style of `space-pin`; the title is **New pane**. `folder` comes from the split pane (`p.pane.cwd` via `pane-plus`, or `place(space)` in `ref-menu`), falling back to the space's location (including a pinned space's fixed location).
 
-## Abas pinadas
+## Pinned tabs
 
-O estado das abas fica em `shared("tabs.pinned")` (ids de aba). O right-click numa aba mostra **Pin tab / Unpin tab**; a aba pinada ganha o ícone de pin e vai para o começo das abas regulares. O `tabs-ref` reordena o modelo via `tab.move` (pinned, depois não pinadas, depois eventuais placeholders), então `cmd+1..9`, `tab.next` e arrastar continuam coerentes. A lista sobrevive fechar/abrir o Herdr; ids de abas fechadas ficam nela sem efeito, porque ids de aba não são reaproveitados.
+Tab state is stored in `shared("tabs.pinned")` (tab ids). Right-clicking a tab shows **Pin tab / Unpin tab**; a pinned tab gets the pin icon and moves to the start of regular tabs. `tabs-ref` reorders the model via `tab.move` (pinned, then unpinned, then any placeholders), so `cmd+1..9`, `tab.next`, and dragging stay consistent. The list survives restarting Herdr; closed tab ids remain harmlessly because tab ids are never reused.
 
-O `cmd+1..9` deve ser ligado a `tabs-ref.select1`..`tabs-ref.select9` (um comando de mod não recebe argumentos, por isso há um por número):
+Bind `cmd+1..9` to `tabs-ref.select1`..`tabs-ref.select9` (a mod command takes no arguments, hence one per number):
 
 ```json
 "cmd-1": "tabs-ref.select1",
 "cmd-9": "tabs-ref.select9"
 ```
 
-O `tabs-ref` conta só as abas que a barra mostra (`visibleTabs`): a aba placeholder `space-pin` escondida nunca é alcançada, e um número maior que a quantidade de abas visíveis é ignorado, sem erro (o `tab.select:N` embutido dá erro e conta abas escondidas). Sem o `tabs-ref` montado, mantenha `tab.select:N`.
+`tabs-ref` counts only tabs shown in the bar (`visibleTabs`): a hidden `space-pin` placeholder is never reached, and a number higher than the visible tab count is ignored without error (built-in `tab.select:N` errors and counts hidden tabs). Without `tabs-ref` mounted, keep `tab.select:N`.
 
-O `cmd+w` deve ser ligado a `tabs-ref.closeTab`:
+Bind `cmd+w` to `tabs-ref.closeTab`:
 
 ```json
 "cmd-w": "tabs-ref.closeTab"
 ```
 
-Numa aba pinada ele não fecha: seleciona a aba mais próxima (empate vai para a direita). Numa aba normal ele chama `tab.close` como antes. O X da aba e o **Close** do menu ainda fecham explicitamente, inclusive uma aba pinada. `<mod>.<command>` precisa do mod montado no layout; sem o `tabs-ref`, mantenha `cmd-w` em `tab.close`.
+On a pinned tab it does not close: it selects the nearest tab (ties go right). On a normal tab it calls `tab.close` as before. The tab's X button and the menu's **Close** item still close explicitly, including pinned tabs. `<mod>.<command>` requires the mod to be mounted in the layout; without `tabs-ref`, keep `cmd-w` bound to `tab.close`.
 
-O `cmd+t` deve ser ligado a `tabs-ref.newTab` quando o `tabs-ref` está montado:
+Bind `cmd+t` to `tabs-ref.newTab` when `tabs-ref` is mounted:
 
 ```json
 "cmd-t": "tabs-ref.newTab"
 ```
 
-Ele abre ou seleciona a aba placeholder **New tab** (`space-pin`) do space ativo, em vez de criar um terminal direto. Sem o `tabs-ref`, use `spaces-plus.newTerminal` (ou `tab.new`) — ver o repo `herdr-space-actions`.
+It opens or selects the active space's **New tab** (`space-pin`) placeholder instead of creating a terminal directly. Without `tabs-ref`, use `spaces-plus.newTerminal` (or `tab.new`) — see the `herdr-space-actions` repo.
 
-## Reordenar panes
+## Reordering panes
 
-- O header tem **Move** → `pane.swap` left/right/up/down.
-- O app já reordena arrastando pelo grip do topo do pane; `cmd-alt-shift-arrows` já estão ligados a `pane.swap` no `keys.json` do usuário.
-- `pane.swap` troca com o vizinho na direção; sem vizinho, não faz nada.
+- The header has **Move** → `pane.swap` left/right/up/down.
+- The app already supports drag-reordering via the pane's top grip; `cmd-alt-shift-arrows` are already bound to `pane.swap` in the user's `keys.json`.
+- `pane.swap` swaps with the neighbor in that direction; with no neighbor, it does nothing.
 
 ## Copy reference
 
-O right-click num terminal pane ou numa aba oferece **Copy reference · <app>**:
+Right-clicking a terminal pane or a tab offers **Copy reference · <app>**:
 
-1. Coloca na área de transferência uma linha estruturada começando pelo endereço `hc` (`t9` ou `machine/t9`) seguido do contexto (programa, título, aba, space, diretório).
-2. Outros agentes ou scripts podem interagir com o terminal imediatamente via `hc get/read/send/wait <address>`.
-3. Compatível com macOS (`osascript`), Linux (`wl-copy` ou `xclip`) e Windows (PowerShell).
+1. Copies to the clipboard a structured line starting with the `hc` address (`t9` or `machine/t9`) followed by context (program, title, tab, space, directory).
+2. Other agents or scripts can interact with the terminal immediately via `hc get/read/send/wait <address>`.
+3. Works on macOS (`osascript`), Linux (`wl-copy` or `xclip`), and Windows (PowerShell).
 
-## Regra: sempre atualizar a pasta live do Herdr
+## Rule: always update Herdr's live folder
 
-O Herdr lê os mods de `~/.config/herdr-app/mods/<nome>`. Depois de **qualquer** mudança aqui:
+Herdr loads mods from `~/.config/herdr-app/mods/<name>`. After **any** change here:
 
 ```sh
 ./sync.sh
 ```
 
-O script copia `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane` e `toast-plus` para a pasta live e roda `herdr-app check` neles. Não edite a pasta live diretamente.
+The script copies `tabs-ref`, `ref-menu`, `pane-plus`, `new-pane`, and `toast-plus` to the live folder and runs `herdr-app check` on them. Do not edit the live folder directly.
 
-## Ligação no layout
+## Layout wiring
 
-O layout aponta o bloco `tabs` para `tabs-ref`, o root `terminal_menu` para `ref-menu`, o root `toast` para `toast-plus` e o header do pane frame para `pane-plus`:
+The layout points the `tabs` block to `tabs-ref`, root `terminal_menu` to `ref-menu`, root `toast` to `toast-plus`, and the pane frame header to `pane-plus`:
 
 ```json
 {
@@ -134,26 +134,26 @@ O layout aponta o bloco `tabs` para `tabs-ref`, o root `terminal_menu` para `ref
 }
 ```
 
-`new-pane` não entra no layout: ele é criado por `pane.split` dentro de uma tab. Os `tabs`, `menu` e `toast` originais do Herdr continuam intocados. Se o layout for resetado, reponha os cinco slots.
+`new-pane` is not wired in the layout: it is created by `pane.split` inside a tab. Herdr's original `tabs`, `menu`, and `toast` remain untouched. If the layout is reset, restore these five slots.
 
-## Integrações opcionais
+## Optional integrations
 
-Nenhum mod deste repo depende de outro mod (nem deste repo nem de outros): cada um é instalável sozinho. `tabs-ref`, `pane-plus` e `ref-menu` procuram os mods opcionais na pasta live (`mods/<nome>/mod.json`); `tabs-ref` re-checa a cada 5 s, `pane-plus` a cada 15 s e `ref-menu` a cada abertura do menu, então instalar ou desativar um deles vale na hora. Ícones ficam sempre na pasta do próprio mod ou em um mod shipped do Herdr (`pane`, `workspace-chrome`, `files`, `changes`); nunca use assets de outro mod custom.
+No mod in this repo depends on any other mod (neither in this repo nor in others): each is installable standalone. `tabs-ref`, `pane-plus`, and `ref-menu` check for optional mods in the live folder (`mods/<name>/mod.json`); `tabs-ref` re-checks every 5 s, `pane-plus` every 15 s, and `ref-menu` on every menu open, so installing or disabling one takes effect immediately. Icons always live in the mod's own folder or in a shipped Herdr mod (`pane`, `workspace-chrome`, `files`, `changes`); never use assets from another custom mod.
 
-- `ref-menu` (deste repo): quando instalado, é o menu do clique direito numa aba. Sem ele, abre o `menu` do Herdr (sem Copy reference nem Pin tab). Do outro lado, o `ref-menu` só mostra **Pin tab** enquanto `tabs-ref` estiver montado no layout, e só cria o placeholder ao fechar a última aba se `space-pin` estiver instalado.
-- `new-pane` (deste repo): quando instalado, os splits de `pane-plus` e `ref-menu` abrem o chooser; sem ele, abrem um terminal direto.
-- `new-menu-plus` (do repositório `herdr-space-actions`): quando instalado, o botão `+` abre o overlay de criação rápida de abas. Sem ele, o botão `+` executa diretamente a ação padrão `tab.new` no space ativo. O atalho antigo `cmd+opt+t` (`tabs-ref.newMenu`) foi removido: o `cmd+t` já abre a aba New tab.
-- `agent-chat` (do repositório `herdr-agent-chat`): quando instalado, exibe o toggle Original / Chat na barra de abas para alternar ou criar o split de chat. Sem ele, a barra de alternância de chat não é renderizada. Os ícones do toggle são cópias locais (`mods/tabs-ref/terminal.svg`, `chat.svg`). Um chevron à direita abre o menu de escopo: **All agents** (global) ou **<harness> only** (por harness, ex.: OpenCode, Claude Code). O escopo fica em `shared("tabs.viewScope")` (`"global"` ou `"harness"`, default `"harness"`) e os modos escolhidos em `shared("tabs.viewModes")` (`{ global, harness: { <app>: "chat" | "original" } }`), ambos persistidos. Ao abrir uma aba (antes mesmo de mostrá-la, para não piscar o terminal) e a cada visita, `syncViewMode`/`applySavedMode` aplicam o modo lembrado do escopo; o guard de "já aplicado" é por visita, então voltar a uma aba reaplica o chat (ou o terminal) em vez de ficar no CLI. Clicar no toggle salva o modo atual. A lógica pura fica em `view-mode.js` e é testada em `test/view-mode.test.js`.
-- `space-pin` (do repositório `herdr-space-actions`): é a aba placeholder **New tab** que o `tabs-ref` esconde, restaura e seleciona. O `tabs-ref` reaproveita o placeholder já existente ao fechar a última aba (nunca empilha placeholders escondidos) e cria um novo sem foco, para a aba que fecha continuar na tela se o `tab.close` não pegar. O ícone usado na barra é uma cópia local em `mods/tabs-ref/new-tab.svg`, para o repo continuar publicável sozinho. Sem `space-pin`, a barra de abas funciona, mas não há placeholder de space pinado: `cmd+t` abre uma aba de terminal e fechar a última aba fecha o space, como no Herdr.
-- `file-editor` (do repositório `herdr-file-editor`): quando instalado, publica `preview: true` em `shared("file-editor.openTabs")` para abas abertas com um clique. O `tabs-ref` desenha o nome em itálico e apagado, com um ponto vazado, promove a aba a permanente no duplo clique (em vez de abrir o rename) e promove também ao pinar. Sem o `file-editor`, não há abas de preview e o duplo clique continua renomeando.
+- `ref-menu` (this repo): when installed, serves as the right-click menu on a tab. Without it, opens Herdr's `menu` (without Copy reference or Pin tab). Conversely, `ref-menu` only shows **Pin tab** while `tabs-ref` is mounted in the layout, and only creates the placeholder when closing the last tab if `space-pin` is installed.
+- `new-pane` (this repo): when installed, `pane-plus` and `ref-menu` splits open the chooser; without it, they open a terminal directly.
+- `new-menu-plus` (from `herdr-space-actions`): when installed, the `+` button opens the quick tab-creation overlay. Without it, the `+` button runs the default `tab.new` action in the active space. The old `cmd+opt+t` shortcut (`tabs-ref.newMenu`) was removed: `cmd+t` already opens the New tab.
+- `agent-chat` (from `herdr-agent-chat`): when installed, displays the Original / Chat toggle in the tab bar to switch or create the chat split. Without it, the chat toggle bar is not rendered. Toggle icons are local copies (`mods/tabs-ref/terminal.svg`, `chat.svg`). A chevron on the right opens the scope menu: **All agents** (global) or **<harness> only** (per harness, e.g. OpenCode, Claude Code). Scope is stored in `shared("tabs.viewScope")` (`"global"` or `"harness"`, default `"harness"`) and chosen modes in `shared("tabs.viewModes")` (`{ global, harness: { <app>: "chat" | "original" } }`), both persisted. When opening a tab (even before showing it, to avoid terminal flicker) and on every visit, `syncViewMode`/`applySavedMode` apply the remembered mode for the scope; the "already applied" guard is per-visit, so returning to a tab reapplies chat (or terminal) instead of staying on the CLI. Clicking the toggle saves the current mode. Pure logic lives in `view-mode.js` and is tested in `test/view-mode.test.js`.
+- `space-pin` (from `herdr-space-actions`): the **New tab** placeholder tab that `tabs-ref` hides, restores, and selects. `tabs-ref` reuses an existing placeholder when closing the last tab (never stacks hidden placeholders) and creates a new one unfocused so the closing tab stays on screen if `tab.close` does not take. The icon used in the bar is a local copy at `mods/tabs-ref/new-tab.svg` so the repo stays publishable standalone. Without `space-pin`, the tab bar still works, but there is no pinned-space placeholder: `cmd+t` opens a terminal tab and closing the last tab closes the space, as in stock Herdr.
+- `file-editor` (from `herdr-file-editor`): when installed, publishes `preview: true` in `shared("file-editor.openTabs")` for single-clicked tabs. `tabs-ref` draws the name italic and muted with a hollow dot, promotes the tab to permanent on double-click (instead of opening rename), and also promotes on pin. Without `file-editor`, there are no preview tabs and double-click keeps renaming.
 
-## Preview de arquivos
+## File previews
 
-Abas de preview (temporárias) vêm do `file-editor` e são identificadas por `entry.preview === true` no mapa `shared("file-editor.openTabs")`. O `tabs-ref` casa primeiro por `tabId` e, enquanto a aba recém-criada ainda não registrou o id, pelo `tabName` exato; nos dois casos a aba precisa hospedar um pane `file-editor` agora, para não sobrar itálico ou promoção quando o editor é desinstalado ou o pane é fechado. Abrir outro arquivo em preview substitui a aba temporária anterior; editar a aba ou piná-la a torna permanente (o pin vindo do `ref-menu` chega via `tabs-ref.reorder`, que promove previews pinadas antes de ordenar). O duplo clique numa aba permanente mantém o comportamento antigo de renomear.
+Preview (temporary) tabs come from `file-editor` and are identified by `entry.preview === true` in the `shared("file-editor.openTabs")` map. `tabs-ref` matches by `tabId` first and, while a newly created tab has not registered its id yet, by exact `tabName`; in both cases the tab must currently host a `file-editor` pane so italics or promotion do not linger when the editor is uninstalled or the pane is closed. Opening another file in preview replaces the previous temporary tab; editing or pinning the tab makes it permanent (pinning from `ref-menu` arrives via `tabs-ref.reorder`, which promotes pinned previews before reordering). Double-clicking a permanent tab keeps the existing rename behavior.
 
-## Testes
+## Tests
 
-Para rodar os testes unitários de `ref.js`, `preview.js`, `pane.js`, `chooser.js`, `view-mode.js` e `toast-logic.js` (sem necessidade de `npm test`):
+To run the unit tests for `ref.js`, `preview.js`, `pane.js`, `chooser.js`, `view-mode.js`, and `toast-logic.js` (no `npm test` needed):
 
 ```sh
 node --test test/
@@ -161,4 +161,4 @@ node --test test/
 
 ## Skill
 
-A skill `herdr-publish` está em `.agents/skills/herdr-publish/SKILL.md`. Ela cobre validação, sync, `RECIPE.md`/`preview.png` e publicação em `herdr.dev/mods` com o tópico `herdr-mod`.
+The `herdr-publish` skill is in `.agents/skills/herdr-publish/SKILL.md`. It covers validation, sync, `RECIPE.md`/`preview.png`, and publishing to `herdr.dev/mods` with the `herdr-mod` topic.
